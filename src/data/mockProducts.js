@@ -1,0 +1,2382 @@
+/**
+ * Centralized Product Catalogue & Mock Database for ShopSmart AI
+ * Indian Market Pricing (INR - ₹)
+ * 
+ * 65 Verified Products across 10 Categories:
+ * - Smartphones (8)
+ * - Laptops (5)
+ * - Tablets (4)
+ * - Headphones & Earbuds (6)
+ * - Smartwatches (4)
+ * - Electronics Accessories (11)
+ * - Home Appliances (6)
+ * - Fashion (7)
+ * - Home & Living (7)
+ * - Car Care (7)
+ */
+
+export const CATEGORIES = [
+  {
+    "id": "smartphones",
+    "name": "Smartphones",
+    "tagline": "5G, Flagships & Budget Killers",
+    "image": "https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=800&q=80",
+    "count": 8
+  },
+  {
+    "id": "laptops",
+    "name": "Laptops",
+    "tagline": "Coding, Creator & Ultrabooks",
+    "image": "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800&q=80",
+    "count": 5
+  },
+  {
+    "id": "tablets",
+    "name": "Tablets",
+    "tagline": "Productivity & Digital Notes",
+    "image": "https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=800&q=80",
+    "count": 4
+  },
+  {
+    "id": "headphones-earbuds",
+    "name": "Headphones & Earbuds",
+    "tagline": "ANC, Studio Sound & TWS",
+    "image": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80",
+    "count": 6
+  },
+  {
+    "id": "smartwatches",
+    "name": "Smartwatches",
+    "tagline": "AMOLED, Fitness & Calling",
+    "image": "https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=800&q=80",
+    "count": 4
+  },
+  {
+    "id": "electronics-accessories",
+    "name": "Electronics Accessories",
+    "tagline": "Chargers, SSDs, Power Banks & Docks",
+    "image": "https://images.unsplash.com/photo-1622445262464-84b1456045b6?w=800&q=80",
+    "count": 11
+  },
+  {
+    "id": "home-appliances",
+    "name": "Home Appliances",
+    "tagline": "Air Fryers, Vacuums & Water Purifiers",
+    "image": "https://images.unsplash.com/photo-1585338107529-13afc5f02586?w=800&q=80",
+    "count": 6
+  },
+  {
+    "id": "fashion",
+    "name": "Fashion",
+    "tagline": "Ethnic & Modern Indian Wear",
+    "image": "https://images.unsplash.com/photo-1617137984095-74e4e5e3613f?w=800&q=80",
+    "count": 7
+  },
+  {
+    "id": "home-living",
+    "name": "Home & Living",
+    "tagline": "Decor, Ergonomics & Comfort",
+    "image": "https://images.unsplash.com/photo-1580481077195-c3f8864f51c4?w=800&q=80",
+    "count": 7
+  },
+  {
+    "id": "car-care",
+    "name": "Car Care",
+    "tagline": "Detailing, Accessories & Care",
+    "image": "https://images.unsplash.com/photo-1607860108855-64acf2078ed9?w=800&q=80",
+    "count": 7
+  }
+];
+
+export const PRODUCTS = [
+  {
+    "id": "phone-001",
+    "name": "OnePlus Nord CE 4 5G (8GB RAM, 128GB Storage, Celadon Marble)",
+    "brand": "OnePlus",
+    "category": "Smartphones",
+    "price": 19999,
+    "originalPrice": 24999,
+    "discountPercent": 20,
+    "image": "https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=800&q=80",
+      "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&q=80"
+    ],
+    "description": "The definitive all-round smartphone under ₹20,000 in India. Powered by Qualcomm Snapdragon 7 Gen 3, a 120Hz Fluid AMOLED display, 50MP Sony LYT-600 OIS camera, and class-leading 100W SUPERVOOC charging that charges the massive 5,500mAh battery from 1-100% in just 29 minutes.",
+    "rating": 4.8,
+    "reviewsCount": 3820,
+    "availability": "In Stock",
+    "stockCount": 42,
+    "isFeatured": true,
+    "isTrending": true,
+    "tags": [
+      "Best Under ₹20,000",
+      "5G",
+      "100W Fast Charge",
+      "Sony OIS",
+      "AI Recommended"
+    ],
+    "specifications": {
+      "Processor": "Qualcomm Snapdragon 7 Gen 3 (4nm)",
+      "RAM": "8GB LPDDR4X (+8GB Virtual RAM)",
+      "Storage": "128GB UFS 3.1 (Expandable up to 1TB)",
+      "Display": "6.7\" 120Hz Fluid AMOLED FHD+",
+      "RearCamera": "50MP Sony LYT-600 with OIS + 8MP Ultra-wide",
+      "FrontCamera": "16MP Selfie Camera",
+      "Battery": "5500mAh with 100W SUPERVOOC Fast Charge",
+      "OS": "OxygenOS 14 based on Android 14",
+      "Warranty": "1 Year Manufacturer Warranty"
+    },
+    "aiVerdict": "The single best balanced smartphone purchase in India under ₹20,000. Phenomenal 100W charging, clean OxygenOS software, and dependable 50MP Sony OIS photography."
+  },
+  {
+    "id": "phone-002",
+    "name": "Redmi Note 13 Pro 5G (8GB RAM, 256GB Storage, Arctic White)",
+    "brand": "Redmi",
+    "category": "Smartphones",
+    "price": 21999,
+    "originalPrice": 28999,
+    "discountPercent": 24,
+    "image": "https://images.unsplash.com/photo-1580910051074-3eb694886505?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1580910051074-3eb694886505?w=800&q=80",
+      "https://images.unsplash.com/photo-1565849904461-04a58ad377e0?w=800&q=80"
+    ],
+    "description": "Flagship camera photography at mid-range pricing. Features a ground-breaking 200MP Samsung ISOCELL HP3 camera with OIS + EIS, a 1.5K 120Hz Curved AMOLED display with Corning Gorilla Glass Victus, and Snapdragon 7s Gen 2 performance.",
+    "rating": 4.6,
+    "reviewsCount": 2940,
+    "availability": "In Stock",
+    "stockCount": 28,
+    "isFeatured": true,
+    "isTrending": false,
+    "tags": [
+      "200MP Camera",
+      "1.5K Display",
+      "5G",
+      "Gorilla Glass Victus"
+    ],
+    "specifications": {
+      "Processor": "Snapdragon 7s Gen 2 (4nm)",
+      "RAM": "8GB LPDDR4X",
+      "Storage": "256GB UFS 2.2",
+      "Display": "6.67\" 1.5K Curved AMOLED, 120Hz, 1800 nits",
+      "RearCamera": "200MP OIS Main + 8MP Ultra-wide + 2MP Macro",
+      "FrontCamera": "16MP Front Camera",
+      "Battery": "5100mAh with 67W Turbo Charge",
+      "OS": "MIUI 14 with Android 13 (HyperOS Ready)",
+      "Warranty": "1 Year Manufacturer Warranty"
+    },
+    "aiVerdict": "Unrivalled 200MP detail and stunning 1.5K display for photography lovers and OTT streaming enthusiasts around ₹22,000."
+  },
+  {
+    "id": "phone-003",
+    "name": "Samsung Galaxy M34 5G (6GB RAM, 128GB Storage, Prism Silver)",
+    "brand": "Samsung",
+    "category": "Smartphones",
+    "price": 14999,
+    "originalPrice": 24499,
+    "discountPercent": 39,
+    "image": "https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=800&q=80"
+    ],
+    "description": "The marathon battery king under ₹15,000. Armed with a monster 6,000mAh battery, vibrant 120Hz Super AMOLED display, 50MP No Shake OIS camera, and Samsung’s promise of 4 generations of Android OS updates.",
+    "rating": 4.5,
+    "reviewsCount": 5120,
+    "availability": "In Stock",
+    "stockCount": 65,
+    "isFeatured": true,
+    "isTrending": true,
+    "tags": [
+      "Best Under ₹15,000",
+      "6000mAh Battery",
+      "Super AMOLED",
+      "Samsung Knox"
+    ],
+    "specifications": {
+      "Processor": "Exynos 1280 Octa-Core (5nm)",
+      "RAM": "6GB (+6GB RAM Plus)",
+      "Storage": "128GB (Expandable up to 1TB)",
+      "Display": "6.5\" 120Hz Super AMOLED FHD+ (1000 nits)",
+      "RearCamera": "50MP No Shake OIS + 8MP Ultra-wide + 2MP",
+      "FrontCamera": "13MP High-Res Selfie",
+      "Battery": "6000mAh with 25W Fast Charging Support",
+      "OS": "One UI 5.1 (4 OS Upgrades Guaranteed)",
+      "Warranty": "1 Year Brand Warranty for Phone, 6 Months for Accessories"
+    },
+    "aiVerdict": "Top pick under ₹15,000 for users prioritizing two-day battery life, Samsung display quality, and 4 years of guaranteed OS security updates."
+  },
+  {
+    "id": "phone-004",
+    "name": "Realme Narzo 70x 5G (6GB RAM, 128GB Storage, Forest Green)",
+    "brand": "Realme",
+    "category": "Smartphones",
+    "price": 11999,
+    "originalPrice": 15999,
+    "discountPercent": 25,
+    "image": "https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=800&q=80"
+    ],
+    "description": "Blazing-fast 5G speeds at an accessible sub-₹12,000 price point. Features MediaTek Dimensity 6100+ 5G, 45W SUPERVOOC charging, dual stereo speakers, and an ultra-smooth 120Hz display.",
+    "rating": 4.4,
+    "reviewsCount": 1820,
+    "availability": "In Stock",
+    "stockCount": 38,
+    "isFeatured": false,
+    "isTrending": true,
+    "tags": [
+      "Under ₹12,000",
+      "45W Fast Charge",
+      "120Hz Display",
+      "Dual Stereo"
+    ],
+    "specifications": {
+      "Processor": "MediaTek Dimensity 6100+ 5G (6nm)",
+      "RAM": "6GB (+6GB Dynamic RAM)",
+      "Storage": "128GB Internal Storage",
+      "Display": "6.72\" 120Hz Ultra Smooth FHD+ Display",
+      "RearCamera": "50MP AI Primary Camera + 2MP Depth",
+      "FrontCamera": "8MP AI Selfie",
+      "Battery": "5000mAh with 45W SUPERVOOC Charger in Box",
+      "OS": "realme UI 5.0 based on Android 14",
+      "Warranty": "1 Year Domestic Warranty"
+    },
+    "aiVerdict": "Phenomenal entry-level 5G daily driver offering fast 45W charging in the box and stereo speakers under ₹12,000."
+  },
+  {
+    "id": "phone-005",
+    "name": "POCO M6 5G (4GB RAM, 128GB Storage, Orion Blue)",
+    "brand": "POCO",
+    "category": "Smartphones",
+    "price": 9499,
+    "originalPrice": 13999,
+    "discountPercent": 32,
+    "image": "https://images.unsplash.com/photo-1574944985070-8f3ebc6b79d2?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1574944985070-8f3ebc6b79d2?w=800&q=80"
+    ],
+    "description": "India’s most affordable certified 5G smartphone under ₹10,000. Features a stunning glass-back design, 90Hz display with Gorilla Glass 3, MediaTek Dimensity 6100+ 5G processor, and a reliable 5000mAh battery.",
+    "rating": 4.3,
+    "reviewsCount": 3100,
+    "availability": "In Stock",
+    "stockCount": 50,
+    "isFeatured": false,
+    "isTrending": false,
+    "tags": [
+      "Best Under ₹10,000",
+      "Affordable 5G",
+      "Glass Back"
+    ],
+    "specifications": {
+      "Processor": "MediaTek Dimensity 6100+ 5G (6nm)",
+      "RAM": "4GB (+4GB Turbo RAM)",
+      "Storage": "128GB (Expandable up to 1TB via Dedicated Slot)",
+      "Display": "6.74\" 90Hz HD+ Dot Drop Display",
+      "RearCamera": "50MP AI Dual Camera",
+      "FrontCamera": "5MP Selfie Camera",
+      "Battery": "5000mAh with 18W Fast Charging Support",
+      "OS": "MIUI 14 based on Android 13",
+      "Warranty": "1 Year Manufacturer Warranty"
+    },
+    "aiVerdict": "The undisputed budget winner under ₹10,000 for users who want legitimate 5G connectivity without overspending."
+  },
+  {
+    "id": "phone-006",
+    "name": "iQOO Z9s 5G (8GB RAM, 128GB Storage, Titanium Matte)",
+    "brand": "iQOO",
+    "category": "Smartphones",
+    "price": 19499,
+    "originalPrice": 25999,
+    "discountPercent": 25,
+    "image": "https://images.unsplash.com/photo-1567581935884-3349723552ca?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1567581935884-3349723552ca?w=800&q=80"
+    ],
+    "description": "The gaming and speed champion under ₹20,000. Equipped with the MediaTek Dimensity 7300 4nm processor scoring over 700,000+ on AnTuTu, a 3D curved 120Hz AMOLED display with 1800 nits peak brightness, and 50MP Sony IMX882 OIS camera.",
+    "rating": 4.7,
+    "reviewsCount": 1490,
+    "availability": "In Stock",
+    "stockCount": 30,
+    "isFeatured": true,
+    "isTrending": true,
+    "tags": [
+      "Gaming King",
+      "Dimensity 7300",
+      "Curved AMOLED",
+      "Under ₹20,000"
+    ],
+    "specifications": {
+      "Processor": "MediaTek Dimensity 7300 (4nm Energy Efficient)",
+      "RAM": "8GB LPDDR4X",
+      "Storage": "128GB UFS 2.2",
+      "Display": "6.77\" 120Hz 3D Curved AMOLED (1800 nits)",
+      "RearCamera": "50MP Sony IMX882 OIS + 2MP Bokeh",
+      "FrontCamera": "16MP Portrait Selfie",
+      "Battery": "5500mAh Ultra-Thin Battery with 44W FlashCharge",
+      "OS": "Funtouch OS 14 based on Android 14",
+      "Warranty": "1 Year Brand Warranty"
+    },
+    "aiVerdict": "Top recommendation under ₹20,000 for BGMI/gaming enthusiasts wanting 3D curved AMOLED aesthetics and relentless processing speed."
+  },
+  {
+    "id": "phone-007",
+    "name": "Apple iPhone 15 (128GB, Black)",
+    "brand": "Apple",
+    "category": "Smartphones",
+    "price": 64999,
+    "originalPrice": 79900,
+    "discountPercent": 19,
+    "image": "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=800&q=80",
+      "https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?w=800&q=80"
+    ],
+    "description": "The modern iOS benchmark. Features the innovative Dynamic Island, an advanced 48MP main camera with 2x optical-quality telephoto, color-infused back glass design, durable Ceramic Shield, and universal USB-C charging.",
+    "rating": 4.9,
+    "reviewsCount": 8400,
+    "availability": "In Stock",
+    "stockCount": 22,
+    "isFeatured": true,
+    "isTrending": true,
+    "tags": [
+      "Apple Flagship",
+      "Dynamic Island",
+      "48MP Camera",
+      "USB-C"
+    ],
+    "specifications": {
+      "Processor": "A16 Bionic Chip (6-core CPU, 5-core GPU)",
+      "RAM": "6GB High-Bandwidth",
+      "Storage": "128GB NVMe",
+      "Display": "6.1\" Super Retina XDR OLED (2000 nits peak outdoor)",
+      "RearCamera": "48MP Main with Sensor-shift OIS + 12MP Ultra-wide",
+      "FrontCamera": "12MP TrueDepth Camera with Autofocus",
+      "Battery": "Up to 20 hours video playback, MagSafe Wireless Charging",
+      "OS": "iOS 17 (Upgradable to iOS 18 with Apple Intelligence)",
+      "Warranty": "1 Year Apple International Warranty"
+    },
+    "aiVerdict": "The gold-standard premium smartphone for video creators and ecosystem users wanting unmatched reliability and longevity."
+  },
+  {
+    "id": "phone-008",
+    "name": "Samsung Galaxy S24 Ultra 5G (12GB RAM, 256GB Storage, Titanium Gray)",
+    "brand": "Samsung",
+    "category": "Smartphones",
+    "price": 119999,
+    "originalPrice": 134999,
+    "discountPercent": 11,
+    "image": "https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=800&q=80"
+    ],
+    "description": "The pinnacle of Android technology. Engineered with a lightweight Titanium frame, built-in S Pen, cutting-edge Galaxy AI capabilities (Circle to Search, Live Call Translate), Snapdragon 8 Gen 3 for Galaxy, and unmatched 200MP Quad Telephoto optical zoom.",
+    "rating": 4.9,
+    "reviewsCount": 2150,
+    "availability": "In Stock",
+    "stockCount": 15,
+    "isFeatured": true,
+    "isTrending": false,
+    "tags": [
+      "Ultra Flagship",
+      "Galaxy AI",
+      "S Pen",
+      "200MP Zoom",
+      "Titanium"
+    ],
+    "specifications": {
+      "Processor": "Snapdragon 8 Gen 3 for Galaxy (4nm)",
+      "RAM": "12GB LPDDR5X",
+      "Storage": "256GB UFS 4.0",
+      "Display": "6.8\" Flat Dynamic AMOLED 2X, 120Hz, 2600 nits (Gorilla Armor Anti-Reflective)",
+      "RearCamera": "200MP OIS + 50MP (5x Optical) + 10MP (3x Optical) + 12MP Ultra-wide",
+      "FrontCamera": "12MP Dual Pixel AF",
+      "Battery": "5000mAh with 45W Fast Charging + Wireless PowerShare",
+      "OS": "One UI 6.1 on Android 14 (7 Years OS Upgrades)",
+      "Warranty": "1 Year Comprehensive Manufacturer Warranty"
+    },
+    "aiVerdict": "The supreme Android power-user device. Galaxy AI, unmatched 100x zoom photography, and a titanium flat screen make it an investment in elite mobile productivity."
+  },
+  {
+    "id": "elec-001",
+    "name": "TitanBook Pro M2 Creator Laptop (16GB/1TB SSD, Space Black)",
+    "brand": "TitanBook",
+    "category": "Laptops",
+    "price": 125000,
+    "originalPrice": 139900,
+    "discountPercent": 11,
+    "image": "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800&q=80",
+      "https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?w=800&q=80"
+    ],
+    "description": "Flagship creator laptop engineered for heavy code compilation, 4K rendering, and AI model workflows. Features a 14.2-inch Liquid Retina XDR display with 120Hz ProMotion and 18-hour battery endurance.",
+    "rating": 4.9,
+    "reviewsCount": 428,
+    "availability": "In Stock",
+    "stockCount": 14,
+    "isFeatured": true,
+    "isTrending": true,
+    "tags": [
+      "Flagship",
+      "AI Recommended",
+      "16GB RAM",
+      "Creator"
+    ],
+    "specifications": {
+      "Processor": "Next-Gen 12-Core Silicon SoC",
+      "Memory": "16GB Unified High-Bandwidth RAM",
+      "Storage": "1TB NVMe PCIe 4.0 SSD",
+      "Display": "14.2\" Liquid Retina XDR (3024 x 1964, 120Hz)",
+      "Battery": "Up to 18 Hours",
+      "Warranty": "1 Year Manufacturer Onsite Warranty"
+    },
+    "aiVerdict": "Top pick for software engineering students and creators needing raw compilation performance without thermal throttling."
+  },
+  {
+    "id": "lap-002",
+    "name": "ASUS Vivobook 15 Thin & Light (Intel Core i5 12th Gen, 16GB RAM, 512GB SSD)",
+    "brand": "ASUS",
+    "category": "Laptops",
+    "price": 47990,
+    "originalPrice": 69990,
+    "discountPercent": 31,
+    "image": "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&q=80"
+    ],
+    "description": "The standard mid-range coding and business workhorse under ₹50,000. Powered by an Intel Core i5-1235U 10-core processor, 16GB dual-channel RAM, fast 512GB PCIe 4.0 SSD, fingerprint reader, and a 180-degree lay-flat hinge.",
+    "rating": 4.6,
+    "reviewsCount": 1240,
+    "availability": "In Stock",
+    "stockCount": 34,
+    "isFeatured": true,
+    "isTrending": true,
+    "tags": [
+      "Best Under ₹50,000",
+      "16GB RAM",
+      "Intel i5",
+      "Thin & Light"
+    ],
+    "specifications": {
+      "Processor": "Intel Core i5-1235U (10 Cores, up to 4.4 GHz)",
+      "Memory": "16GB DDR4 RAM (Expandable)",
+      "Storage": "512GB M.2 NVMe PCIe 4.0 SSD",
+      "Display": "15.6\" FHD (1920 x 1080) Anti-Glare, 250 nits",
+      "Graphics": "Intel Iris Xe Graphics",
+      "Battery": "42WHrs with Fast Charge (60% in 49 mins)",
+      "OS": "Windows 11 Home + MS Office Home & Student 2021",
+      "Warranty": "1 Year Onsite Warranty"
+    },
+    "aiVerdict": "Unbeatable price-to-performance ratio under ₹50,000 for college students learning Python, web development, and multitasking."
+  },
+  {
+    "id": "lap-003",
+    "name": "Lenovo IdeaPad Slim 3 (AMD Ryzen 5 7520U, 16GB LPDDR5, 512GB SSD, Arctic Grey)",
+    "brand": "Lenovo",
+    "category": "Laptops",
+    "price": 41990,
+    "originalPrice": 62000,
+    "discountPercent": 32,
+    "image": "https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=800&q=80"
+    ],
+    "description": "Ultra-efficient mobile computing featuring AMD Ryzen 5 7520U, high-speed 16GB LPDDR5 memory, 15.6-inch FHD display with TUV Rheinland Low Blue Light certification, and rapid charging.",
+    "rating": 4.5,
+    "reviewsCount": 980,
+    "availability": "In Stock",
+    "stockCount": 20,
+    "isFeatured": false,
+    "isTrending": true,
+    "tags": [
+      "Ryzen 5",
+      "16GB LPDDR5",
+      "Under ₹45,000",
+      "Student Pick"
+    ],
+    "specifications": {
+      "Processor": "AMD Ryzen 5 7520U (4 Cores / 8 Threads, up to 4.3 GHz)",
+      "Memory": "16GB LPDDR5-5500 RAM",
+      "Storage": "512GB SSD M.2 2242 PCIe 4.0x4 NVMe",
+      "Display": "15.6\" FHD (1920x1080) IPS 300 nits Anti-glare",
+      "Battery": "47Wh with Rapid Charge Boost (2 hrs run on 15 min charge)",
+      "Weight": "1.62 kg Lightweight",
+      "OS": "Windows 11 Home",
+      "Warranty": "1 Year Lenovo Onsite Warranty + 1 Year Accidental Damage Protection"
+    },
+    "aiVerdict": "Whisper-quiet thermals and lightning-fast LPDDR5 RAM make this a reliable choice for budget-conscious engineering students."
+  },
+  {
+    "id": "lap-004",
+    "name": "HP Pavilion 14 (Intel Core i5 13th Gen, 16GB RAM, 512GB SSD, Natural Silver)",
+    "brand": "HP",
+    "category": "Laptops",
+    "price": 62990,
+    "originalPrice": 77990,
+    "discountPercent": 19,
+    "image": "https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=800&q=80"
+    ],
+    "description": "Premium compact aluminum chassis laptop with 13th Gen Intel Core i5-1335U power, crisp 14-inch micro-edge IPS display, backlit keyboard, Bang & Olufsen tuned audio, and HP Fast Charge.",
+    "rating": 4.7,
+    "reviewsCount": 760,
+    "availability": "In Stock",
+    "stockCount": 18,
+    "isFeatured": true,
+    "isTrending": false,
+    "tags": [
+      "Intel 13th Gen",
+      "B&O Audio",
+      "Backlit KB",
+      "Under ₹65,000"
+    ],
+    "specifications": {
+      "Processor": "Intel Core i5-1335U (10 Cores, 12 Threads, up to 4.6 GHz)",
+      "Memory": "16GB DDR4-3200 MHz RAM",
+      "Storage": "512GB PCIe NVMe M.2 SSD",
+      "Display": "14\" FHD IPS Micro-Edge Anti-Glare 300 nits",
+      "Audio": "Audio by B&O Dual Speakers",
+      "Battery": "Up to 9 hours 45 mins battery life",
+      "Weight": "1.41 kg Ultra-Portable",
+      "OS": "Windows 11 Home + MS Office 2021",
+      "Warranty": "1 Year HP Onsite Warranty"
+    },
+    "aiVerdict": "Ideal balance of portability, executive metallic build, and B&O speaker fidelity under ₹65,000."
+  },
+  {
+    "id": "lap-005",
+    "name": "Acer Aspire Lite (AMD Ryzen 3 5300U, 8GB RAM, 512GB SSD, Steel Gray)",
+    "brand": "Acer",
+    "category": "Laptops",
+    "price": 28990,
+    "originalPrice": 42999,
+    "discountPercent": 33,
+    "image": "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80"
+    ],
+    "description": "The champion budget laptop under ₹30,000. Features AMD Ryzen 3 5300U quad-core processor, expandable 8GB RAM, 512GB NVMe SSD, and a full numeric keypad in a modern slim bezel enclosure.",
+    "rating": 4.4,
+    "reviewsCount": 1650,
+    "availability": "In Stock",
+    "stockCount": 25,
+    "isFeatured": false,
+    "isTrending": false,
+    "tags": [
+      "Best Under ₹30,000",
+      "Budget Laptop",
+      "SSD Fast Boot"
+    ],
+    "specifications": {
+      "Processor": "AMD Ryzen 3 5300U (4 Cores / 8 Threads, up to 3.8 GHz)",
+      "Memory": "8GB DDR4 (Dual-channel upgradable to 32GB)",
+      "Storage": "512GB PCIe Gen3 NVMe SSD",
+      "Display": "15.6\" FHD 1920 x 1080 High-Brightness Acer ComfyView",
+      "Battery": "36Wh Lithium Ion, 65W AC Adapter",
+      "Weight": "1.59 kg",
+      "OS": "Windows 11 Home",
+      "Warranty": "1 Year International Travelers Warranty"
+    },
+    "aiVerdict": "A true budget lifesaver under ₹30,000 providing legitimate SSD speeds and upgradeable RAM for school projects and office tasks."
+  },
+  {
+    "id": "tab-001",
+    "name": "Apple iPad 10th Gen (10.9-inch, Wi-Fi, 64GB, Blue)",
+    "brand": "Apple",
+    "category": "Tablets",
+    "price": 32900,
+    "originalPrice": 39900,
+    "discountPercent": 18,
+    "image": "https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=800&q=80"
+    ],
+    "description": "The most versatile student tablet in the world. Features a colorful all-screen 10.9-inch Liquid Retina display, fast A14 Bionic chip, landscape 12MP Ultra Wide front camera with Center Stage, and universal USB-C.",
+    "rating": 4.8,
+    "reviewsCount": 3400,
+    "availability": "In Stock",
+    "stockCount": 28,
+    "isFeatured": true,
+    "isTrending": true,
+    "tags": [
+      "iPad",
+      "Center Stage",
+      "Apple Pencil Ready",
+      "Under ₹35,000"
+    ],
+    "specifications": {
+      "Processor": "Apple A14 Bionic with 16-core Neural Engine",
+      "Display": "10.9\" Liquid Retina True Tone Display (500 nits)",
+      "Storage": "64GB Flash Storage",
+      "RearCamera": "12MP Wide camera with 4K video recording",
+      "FrontCamera": "Landscape 12MP Ultra Wide with Center Stage",
+      "Connectivity": "Wi-Fi 6 (802.11ax), Bluetooth 5.2, USB-C",
+      "Battery": "Up to 10 hours surfing the web on Wi-Fi",
+      "Warranty": "1 Year Apple International Warranty"
+    },
+    "aiVerdict": "Supreme digital note-taking and multimedia device for college students and digital illustrators."
+  },
+  {
+    "id": "tab-002",
+    "name": "Xiaomi Pad 6 (11-inch 2.8K 144Hz Display, Snapdragon 870, 8GB/256GB)",
+    "brand": "Xiaomi",
+    "category": "Tablets",
+    "price": 26999,
+    "originalPrice": 39999,
+    "discountPercent": 32,
+    "image": "https://images.unsplash.com/photo-1561154464-82e9adf32764?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1561154464-82e9adf32764?w=800&q=80"
+    ],
+    "description": "Flagship Android tablet performance under ₹30,000. Features an ultra-crisp 2.8K 144Hz refresh rate display with Dolby Vision, quad speakers with Dolby Atmos, Qualcomm Snapdragon 870 processor, and a metal unibody design.",
+    "rating": 4.7,
+    "reviewsCount": 1980,
+    "availability": "In Stock",
+    "stockCount": 19,
+    "isFeatured": true,
+    "isTrending": false,
+    "tags": [
+      "144Hz 2.8K Display",
+      "Snapdragon 870",
+      "Quad Speakers",
+      "Under ₹30,000"
+    ],
+    "specifications": {
+      "Processor": "Qualcomm Snapdragon 870 (7nm)",
+      "RAM": "8GB LPDDR5",
+      "Storage": "256GB UFS 3.1",
+      "Display": "11\" 2.8K (2880x1800) 144Hz 7-stage refresh rate, Dolby Vision",
+      "Audio": "Quad Speakers with Dolby Atmos Hi-Res Audio",
+      "Battery": "8840mAh with 33W Fast Charging",
+      "OS": "MIUI Pad 14 based on Android 13",
+      "Warranty": "1 Year Brand Warranty"
+    },
+    "aiVerdict": "Best multimedia and gaming tablet in India under ₹30,000 with unmatched 144Hz refresh rate smoothness."
+  },
+  {
+    "id": "tab-003",
+    "name": "Samsung Galaxy Tab A9+ (11.0-inch 90Hz Display, 8GB RAM, 128GB Storage, Wi-Fi)",
+    "brand": "Samsung",
+    "category": "Tablets",
+    "price": 17999,
+    "originalPrice": 25999,
+    "discountPercent": 31,
+    "image": "https://images.unsplash.com/photo-1589739900243-4b52cd9b104e?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1589739900243-4b52cd9b104e?w=800&q=80"
+    ],
+    "description": "Modern productivity tablet featuring Samsung DeX mode for multi-window desktop style multitasking, 11-inch 90Hz screen, Quad speakers powered by Dolby Atmos, and Snapdragon 695 5G chip architecture.",
+    "rating": 4.5,
+    "reviewsCount": 2210,
+    "availability": "In Stock",
+    "stockCount": 35,
+    "isFeatured": false,
+    "isTrending": true,
+    "tags": [
+      "Samsung DeX",
+      "Under ₹20,000",
+      "Quad Speakers",
+      "90Hz"
+    ],
+    "specifications": {
+      "Processor": "Qualcomm Snapdragon 695 Octa-Core",
+      "RAM": "8GB RAM",
+      "Storage": "128GB (Expandable up to 1TB)",
+      "Display": "11.0\" WQXGA 90Hz Display",
+      "Audio": "Quad Speakers with Dolby Atmos",
+      "Battery": "7040mAh with 15W Fast Charge",
+      "OS": "Android 13 with One UI 5.1 (Samsung DeX support)",
+      "Warranty": "1 Year Manufacturer Warranty"
+    },
+    "aiVerdict": "Top choice under ₹20,000 for users who want desktop-style multi-window productivity with Samsung DeX."
+  },
+  {
+    "id": "tab-004",
+    "name": "Lenovo Tab M11 with Bundled Active Stylus Pen (4GB/128GB, Seafoam Green)",
+    "brand": "Lenovo",
+    "category": "Tablets",
+    "price": 12999,
+    "originalPrice": 19000,
+    "discountPercent": 32,
+    "image": "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&q=80"
+    ],
+    "description": "The ultimate budget learning package. Bundled with an active Lenovo Pen for handwritten homework and sketches, an 11-inch 90Hz WUXGA display, Quad Speakers with Dolby Atmos, and curated reading mode.",
+    "rating": 4.3,
+    "reviewsCount": 1120,
+    "availability": "In Stock",
+    "stockCount": 26,
+    "isFeatured": false,
+    "isTrending": false,
+    "tags": [
+      "Stylus Included",
+      "Under ₹15,000",
+      "Student Tablet"
+    ],
+    "specifications": {
+      "Processor": "MediaTek Helio G88 Octa-Core",
+      "RAM": "4GB LPDDR4X",
+      "Storage": "128GB eMMC 5.1",
+      "Display": "11\" WUXGA (1920x1200) IPS 90Hz, 400 nits",
+      "Accessories": "Bundled Active Stylus Pen in Box",
+      "Battery": "7040mAh (Up to 10 hours video playback)",
+      "Warranty": "1 Year Warranty on Tablet, 6 Months on Accessories"
+    },
+    "aiVerdict": "Outstanding value under ₹13,000 since it includes a pressure-sensitive digital pen directly in the box."
+  },
+  {
+    "id": "elec-002",
+    "name": "AcousticPro Studio Noise-Cancelling Headphones",
+    "brand": "AcousticPro",
+    "category": "Headphones & Earbuds",
+    "price": 24999,
+    "originalPrice": 29999,
+    "discountPercent": 17,
+    "image": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80",
+      "https://images.unsplash.com/photo-1484704849700-f032a568e944?w=800&q=80"
+    ],
+    "description": "Studio-grade over-ear wireless headphones with custom 45mm planar drivers and dual-chip neural active noise cancellation tailored for noisy Indian transit and open workspaces.",
+    "rating": 4.9,
+    "reviewsCount": 1420,
+    "availability": "In Stock",
+    "stockCount": 28,
+    "isFeatured": true,
+    "isTrending": false,
+    "tags": [
+      "Best Seller",
+      "Hi-Res Audio",
+      "Planar Drivers",
+      "Studio ANC"
+    ],
+    "specifications": {
+      "Driver": "45mm Planar Magnetic",
+      "ANC": "Adaptive Neural Cancellation (42dB)",
+      "Battery": "40 Hours Playback",
+      "Connectivity": "Bluetooth 5.3 + Aux",
+      "Weight": "254g Lightweight",
+      "Warranty": "2 Years Domestic Warranty"
+    },
+    "aiVerdict": "Outstanding soundstage with punchy sub-bass and pristine vocal clarity. The neural noise cancelling blocks train and traffic roar with ease."
+  },
+  {
+    "id": "elec-004",
+    "name": "EchoPulse True Wireless Earbuds with ANC",
+    "brand": "EchoPulse",
+    "category": "Headphones & Earbuds",
+    "price": 1899,
+    "originalPrice": 3999,
+    "discountPercent": 53,
+    "image": "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=800&q=80"
+    ],
+    "description": "Compact in-ear wireless earbuds delivering heavy Indian bass tuning, 30dB active noise cancellation, and ultra-low latency gaming mode with 40-hour total playback case.",
+    "rating": 4.6,
+    "reviewsCount": 3840,
+    "availability": "In Stock",
+    "stockCount": 76,
+    "isFeatured": true,
+    "isTrending": true,
+    "tags": [
+      "Under ₹2,000",
+      "ANC Earbuds",
+      "Gaming Mode",
+      "AI Recommended"
+    ],
+    "specifications": {
+      "Driver": "10mm Dynamic Bass Boost",
+      "ANC": "30dB Hybrid Active Noise Cancellation",
+      "Battery": "40 Hours Total with USB-C Case",
+      "Latency": "45ms Ultra-Low Latency Mode",
+      "WaterResistance": "IPX5 Sweat & Water Proof",
+      "Warranty": "1 Year Replacement Warranty"
+    },
+    "aiVerdict": "Unbeatable value under ₹2,000 for daily commuting, workouts, and mobile gaming with active noise cancellation."
+  },
+  {
+    "id": "aud-005",
+    "name": "boAt Airdopes 141 ANC TWS Earbuds (32dB ANC, 42H Playtime, Beast Mode)",
+    "brand": "boAt",
+    "category": "Headphones & Earbuds",
+    "price": 1499,
+    "originalPrice": 5990,
+    "discountPercent": 75,
+    "image": "https://images.unsplash.com/photo-1606220588913-b3aacb4d2f46?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1606220588913-b3aacb4d2f46?w=800&q=80"
+    ],
+    "description": "India’s most popular budget ANC true wireless earbuds. Delivers 32dB active noise cancellation, signature boAt Extra Bass sound, ENx quad-mic technology for clear phone calls, and 42 hours total playtime.",
+    "rating": 4.5,
+    "reviewsCount": 9200,
+    "availability": "In Stock",
+    "stockCount": 85,
+    "isFeatured": false,
+    "isTrending": true,
+    "tags": [
+      "Best Under ₹1,500",
+      "boAt Signature Bass",
+      "32dB ANC",
+      "ENx Quad Mics"
+    ],
+    "specifications": {
+      "Driver": "10mm High-Fidelity Bass Drivers",
+      "NoiseCancellation": "Up to 32dB Active Noise Cancellation",
+      "Playtime": "42 Hours total (6 hours on single charge)",
+      "CallQuality": "Quad Mics with ENx Environmental Noise Cancellation",
+      "FastCharge": "ASAP Charge (10 mins = 150 mins playtime)",
+      "Warranty": "1 Year Brand Warranty"
+    },
+    "aiVerdict": "India’s budget king under ₹1,500 with punchy bass, fast charging, and proven brand reliability."
+  },
+  {
+    "id": "aud-006",
+    "name": "OnePlus Nord Buds 3 Pro ANC (49dB Hybrid ANC, 12.4mm Titanized Driver)",
+    "brand": "OnePlus",
+    "category": "Headphones & Earbuds",
+    "price": 2799,
+    "originalPrice": 3999,
+    "discountPercent": 30,
+    "image": "https://images.unsplash.com/photo-1631867675167-90a456a90863?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1631867675167-90a456a90863?w=800&q=80"
+    ],
+    "description": "Flagship-grade 49dB hybrid active noise cancellation at an accessible price. Features oversized 12.4mm titanized dynamic drivers, BassWave 2.0 enhancement, dual-device pairing, and up to 44 hours of endurance.",
+    "rating": 4.7,
+    "reviewsCount": 2450,
+    "availability": "In Stock",
+    "stockCount": 40,
+    "isFeatured": true,
+    "isTrending": true,
+    "tags": [
+      "49dB ANC",
+      "OnePlus BassWave",
+      "Dual Device Connect",
+      "Under ₹3,000"
+    ],
+    "specifications": {
+      "Driver": "12.4mm Titanized Diaphragm",
+      "ANC": "49dB Smart Hybrid Active Noise Cancellation",
+      "Battery": "Up to 44 Hours total battery life",
+      "Connectivity": "Bluetooth 5.4 with Google Fast Pair",
+      "WaterResistance": "IP55 Dust and Water Resistant",
+      "Warranty": "1 Year Brand Warranty"
+    },
+    "aiVerdict": "Class-leading 49dB noise reduction and dual-device connectivity make this the top choice under ₹3,000."
+  },
+  {
+    "id": "aud-007",
+    "name": "Sony WH-1000XM5 Wireless Industry-Leading ANC Headphones (Silver)",
+    "brand": "Sony",
+    "category": "Headphones & Earbuds",
+    "price": 28990,
+    "originalPrice": 34990,
+    "discountPercent": 17,
+    "image": "https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=800&q=80"
+    ],
+    "description": "The worldwide benchmark for noise cancellation and acoustic precision. Powered by dual processors V1 and HD Noise Cancelling QN1, 8 precision microphones, LDAC Hi-Res Wireless Audio, and ultra-comfortable soft-fit leather.",
+    "rating": 4.9,
+    "reviewsCount": 4100,
+    "availability": "In Stock",
+    "stockCount": 16,
+    "isFeatured": true,
+    "isTrending": false,
+    "tags": [
+      "Sony Flagship",
+      "Industry-Leading ANC",
+      "LDAC Hi-Res",
+      "Luxury Audio"
+    ],
+    "specifications": {
+      "Driver": "30mm Precision Carbon Fiber Composite",
+      "Processors": "Dual Processor V1 + HD QN1",
+      "Microphones": "8 Microphones with AI Beamforming Call Quality",
+      "Battery": "30 Hours (3 mins quick charge = 3 hours playback)",
+      "Features": "Speak-to-Chat, Multipoint Connection, Wearing Sensor",
+      "Warranty": "1 Year Domestic Warranty"
+    },
+    "aiVerdict": "The definitive executive headphones for international air travel, coding marathons, and absolute acoustic silence."
+  },
+  {
+    "id": "aud-008",
+    "name": "Realme Buds T300 TWS with 30dB ANC & 360 Spatial Audio Effect",
+    "brand": "Realme",
+    "category": "Headphones & Earbuds",
+    "price": 1999,
+    "originalPrice": 3999,
+    "discountPercent": 50,
+    "image": "https://images.unsplash.com/photo-1572536147248-ac59a8abfa4b?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1572536147248-ac59a8abfa4b?w=800&q=80"
+    ],
+    "description": "Feature-rich true wireless earbuds delivering 360-degree spatial audio, 12.4mm dynamic bass booster, 30dB active noise cancellation, and IP55 water resistance in a sleek pocket-friendly case.",
+    "rating": 4.6,
+    "reviewsCount": 3120,
+    "availability": "In Stock",
+    "stockCount": 60,
+    "isFeatured": false,
+    "isTrending": true,
+    "tags": [
+      "Spatial Audio",
+      "30dB ANC",
+      "Under ₹2,000",
+      "12.4mm Bass"
+    ],
+    "specifications": {
+      "Driver": "12.4mm Dynamic Bass Booster",
+      "ANC": "30dB Active Noise Cancellation",
+      "Features": "360° Spatial Audio Effect",
+      "Battery": "40 Hours Total Playback",
+      "WaterResistance": "IP55 Water and Dust Resistant",
+      "Warranty": "1 Year Warranty"
+    },
+    "aiVerdict": "Exceptional sound separation and spatial stage tuning make this an outstanding purchase at exactly ₹1,999."
+  },
+  {
+    "id": "elec-003",
+    "name": "NeoGlow AMOLED Smartwatch with Bluetooth Calling",
+    "brand": "NeoGlow",
+    "category": "Smartwatches",
+    "price": 4999,
+    "originalPrice": 8999,
+    "discountPercent": 44,
+    "image": "https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=800&q=80"
+    ],
+    "description": "Premium circular metallic smartwatch with ultra-bright 1.43\" AMOLED Always-On display, continuous heart rate, SpO2 sensor, and dual-mic AI noise reduction for crystal clear Bluetooth calls.",
+    "rating": 4.7,
+    "reviewsCount": 2190,
+    "availability": "In Stock",
+    "stockCount": 52,
+    "isFeatured": true,
+    "isTrending": true,
+    "tags": [
+      "Trending",
+      "Under ₹5,000",
+      "AMOLED",
+      "BT Calling"
+    ],
+    "specifications": {
+      "Display": "1.43\" AMOLED (1000 nits, Always-On)",
+      "Battery": "Up to 7 Days Normal Use",
+      "Sensors": "Optical HR, SpO2, Sleep Tracker",
+      "WaterResistance": "IP68 Water & Dust Resistant",
+      "Calling": "Bluetooth 5.2 ENC Clear Calls",
+      "Warranty": "1 Year Replacement Warranty"
+    },
+    "aiVerdict": "Best value smartwatch in the ₹4,000–₹5,000 bracket offering flagship display brightness and dependable call clarity."
+  },
+  {
+    "id": "wat-002",
+    "name": "Noise ColorFit Pro 5 Max AMOLED Smartwatch (1.96\" Display, Post-Workout Recovery)",
+    "brand": "Noise",
+    "category": "Smartwatches",
+    "price": 3999,
+    "originalPrice": 9999,
+    "discountPercent": 60,
+    "image": "https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?w=800&q=80"
+    ],
+    "description": "Large-screen fitness companion boasting a vibrant 1.96-inch AMOLED display, TruSync Bluetooth calling, emergency SOS alert system, post-workout training recovery telemetry, and stress monitoring.",
+    "rating": 4.6,
+    "reviewsCount": 4500,
+    "availability": "In Stock",
+    "stockCount": 38,
+    "isFeatured": true,
+    "isTrending": false,
+    "tags": [
+      "1.96\" AMOLED",
+      "Noise TruSync",
+      "Under ₹4,000",
+      "VO2 Max"
+    ],
+    "specifications": {
+      "Display": "1.96\" AMOLED Always-On (600 nits)",
+      "Calling": "TruSync Bluetooth Calling with Dial Pad",
+      "Health": "Heart Rate, SpO2, Sleep Stages, Stress, VO2 Max",
+      "Battery": "Up to 7 Days (2 Days with Heavy Calling)",
+      "Build": "Metallic Finish with Silicon Strap",
+      "Warranty": "1 Year Brand Warranty"
+    },
+    "aiVerdict": "Top fitness smartwatch under ₹4,000 with detailed post-workout recovery insights and rich watch faces."
+  },
+  {
+    "id": "wat-003",
+    "name": "Fire-Boltt Phoenix Ultra Luxury Stainless Steel Smartwatch",
+    "brand": "Fire-Boltt",
+    "category": "Smartwatches",
+    "price": 1699,
+    "originalPrice": 12499,
+    "discountPercent": 86,
+    "image": "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80"
+    ],
+    "description": "Executive steel timepiece elegance meeting smart telemetry. Features a stainless steel luxury mesh magnetic strap, 1.39-inch HD round screen, AI voice assistant support, Bluetooth calling, and 120+ sports modes.",
+    "rating": 4.3,
+    "reviewsCount": 7800,
+    "availability": "In Stock",
+    "stockCount": 65,
+    "isFeatured": false,
+    "isTrending": true,
+    "tags": [
+      "Stainless Steel",
+      "Under ₹2,000",
+      "Executive Design",
+      "BT Calling"
+    ],
+    "specifications": {
+      "Display": "1.39\" High-Resolution Round Display",
+      "Strap": "Stainless Steel Magnetic Mesh Strap",
+      "Calling": "Bluetooth Phone Calling + AI Voice Assistant",
+      "Modes": "120+ Workout & Sports Modes",
+      "Battery": "Up to 5 Days Normal Usage",
+      "Warranty": "1 Year Brand Warranty"
+    },
+    "aiVerdict": "Unmatched luxury executive appearance under ₹2,000 for formal office wear and weddings."
+  },
+  {
+    "id": "wat-004",
+    "name": "Samsung Galaxy Watch 6 (44mm, Bluetooth, Graphite)",
+    "brand": "Samsung",
+    "category": "Smartwatches",
+    "price": 19999,
+    "originalPrice": 33999,
+    "discountPercent": 41,
+    "image": "https://images.unsplash.com/photo-1510017803434-a899398421b3?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1510017803434-a899398421b3?w=800&q=80"
+    ],
+    "description": "The pinnacle of Android wearable intelligence. Features a sapphire crystal Super AMOLED display, Wear OS powered by Samsung, ECG & Blood Pressure telemetry, BIA Body Composition sensor, and personalized sleep coaching.",
+    "rating": 4.8,
+    "reviewsCount": 1650,
+    "availability": "In Stock",
+    "stockCount": 14,
+    "isFeatured": true,
+    "isTrending": false,
+    "tags": [
+      "Wear OS",
+      "Sapphire Crystal",
+      "ECG Sensor",
+      "Samsung Flagship"
+    ],
+    "specifications": {
+      "Display": "1.5\" Super AMOLED Sapphire Crystal (2000 nits)",
+      "Processor": "Exynos W930 Dual-Core 1.4GHz",
+      "OS": "Wear OS powered by Samsung (One UI 5 Watch)",
+      "Sensors": "BioActive Sensor (Optical HR + ECG + BIA Body Fat)",
+      "Durability": "5ATM + IP68 / MIL-STD-810H Military Standard",
+      "Warranty": "1 Year Samsung India Warranty"
+    },
+    "aiVerdict": "The most comprehensive health, wellness, and WearOS smartwatch for Android users in India."
+  },
+  {
+    "id": "elec-005",
+    "name": "Dual-Port 33W GaN Fast Wall Charger",
+    "brand": "VoltCore",
+    "category": "Electronics Accessories",
+    "price": 799,
+    "originalPrice": 1499,
+    "discountPercent": 47,
+    "image": "https://images.unsplash.com/photo-1583863788434-e58a36330cf0?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1583863788434-e58a36330cf0?w=800&q=80"
+    ],
+    "description": "Compact Gallium Nitride (GaN) fast charger with dual Type-C and USB-A outputs. Powers iPhones, Samsung Galaxy, and OnePlus devices with temperature protection.",
+    "rating": 4.7,
+    "reviewsCount": 1105,
+    "availability": "In Stock",
+    "stockCount": 95,
+    "isFeatured": false,
+    "isTrending": true,
+    "tags": [
+      "Under ₹1,000",
+      "GaN Fast Charger",
+      "Dual Port"
+    ],
+    "specifications": {
+      "Output": "33W Max Power Delivery 3.0 / PPS / QC 4.0",
+      "Ports": "1x Type-C + 1x USB-A",
+      "Technology": "GaN III Semiconductor Technology",
+      "Safety": "Over-voltage, Over-heating, Short-circuit protection",
+      "Warranty": "6 Months Replacement Warranty"
+    },
+    "aiVerdict": "Everyday tech staple that replaces bulky adapters with a pocket-friendly footprint."
+  },
+  {
+    "id": "elec-006",
+    "name": "Armored Braided 60W Type-C to Type-C Cable (1.5m)",
+    "brand": "ArmoredTech",
+    "category": "Electronics Accessories",
+    "price": 349,
+    "originalPrice": 799,
+    "discountPercent": 56,
+    "image": "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80"
+    ],
+    "description": "Heavy-duty nylon braided Type-C cable with reinforced zinc-alloy connector housings. Supports 60W fast charging and 480Mbps data synchronization.",
+    "rating": 4.5,
+    "reviewsCount": 2340,
+    "availability": "In Stock",
+    "stockCount": 120,
+    "isFeatured": false,
+    "isTrending": false,
+    "tags": [
+      "Under ₹500",
+      "Fast Charging",
+      "Braided Cable"
+    ],
+    "specifications": {
+      "Power": "60W PD (20V / 3A)",
+      "DataTransfer": "480 Mbps USB 2.0",
+      "Length": "1.5 Meters (5 Feet)",
+      "Durability": "Tested for 25,000+ bends",
+      "Warranty": "6 Months Replacement"
+    },
+    "aiVerdict": "Tangle-free, heavy-gauge copper cable built to outlast ordinary PVC wires."
+  },
+  {
+    "id": "acc-006",
+    "name": "Mi 20000mAh 18W Fast Charging Power Bank 3i (Triple Output, Sandstone Black)",
+    "brand": "Xiaomi",
+    "category": "Electronics Accessories",
+    "price": 1899,
+    "originalPrice": 2199,
+    "discountPercent": 14,
+    "image": "https://images.unsplash.com/photo-1622445262464-84b1456045b6?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1622445262464-84b1456045b6?w=800&q=80"
+    ],
+    "description": "High-density 20,000mAh Lithium Polymer power bank with triple output ports (2x USB-A, 1x Type-C) capable of simultaneous charging, two-way 18W fast charging, and 12-layer advanced circuit protection.",
+    "rating": 4.6,
+    "reviewsCount": 11400,
+    "availability": "In Stock",
+    "stockCount": 88,
+    "isFeatured": true,
+    "isTrending": true,
+    "tags": [
+      "Best Seller",
+      "20000mAh",
+      "Power Bank",
+      "Under ₹2,000"
+    ],
+    "specifications": {
+      "Capacity": "20000mAh (74Wh 3.7V) High-Density Li-Polymer",
+      "Output": "18W Fast Charging (2x USB-A + 1x Type-C)",
+      "Input": "Micro-USB + Type-C Dual Input",
+      "Protection": "12-Layer Advanced Chip Protection",
+      "Warranty": "6 Months Brand Warranty"
+    },
+    "aiVerdict": "The most dependable travel power bank in India capable of recharging a typical smartphone 4 to 5 times."
+  },
+  {
+    "id": "acc-007",
+    "name": "Portronics 6-in-1 USB-C Multiport Hub with 4K HDMI & 100W PD Pass-through",
+    "brand": "Portronics",
+    "category": "Electronics Accessories",
+    "price": 1299,
+    "originalPrice": 2499,
+    "discountPercent": 48,
+    "image": "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80"
+    ],
+    "description": "Essential aluminum multiport adapter for modern laptops and tablets. Features 4K@30Hz HDMI video output, 100W Power Delivery pass-through charging, 3 high-speed USB 3.0 ports, and SD card reader.",
+    "rating": 4.5,
+    "reviewsCount": 1620,
+    "availability": "In Stock",
+    "stockCount": 45,
+    "isFeatured": false,
+    "isTrending": true,
+    "tags": [
+      "USB-C Hub",
+      "4K HDMI",
+      "100W PD",
+      "Under ₹1,500"
+    ],
+    "specifications": {
+      "Ports": "1x HDMI 4K@30Hz, 3x USB 3.0 (5Gbps), 1x Type-C 100W PD, 1x SD/TF",
+      "Material": "Aircraft Grade Aluminum Alloy with Heat Dissipation",
+      "Compatibility": "MacBook, Windows Laptops, iPad Pro, Android OTG",
+      "Warranty": "1 Year Brand Warranty"
+    },
+    "aiVerdict": "Indispensable desk accessory for connecting monitors, pen drives, and chargers to modern slim laptops."
+  },
+  {
+    "id": "acc-008",
+    "name": "SanDisk Extreme 1TB Portable External NVMe SSD (Up to 1050MB/s, Rugged IP65)",
+    "brand": "SanDisk",
+    "category": "Electronics Accessories",
+    "price": 8999,
+    "originalPrice": 17500,
+    "discountPercent": 49,
+    "image": "https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?w=800&q=80"
+    ],
+    "description": "Rugged, ultra-compact high-speed portable solid state drive. Features NVMe performance with up to 1050MB/s read and 1000MB/s write speeds, IP65 water and dust resistance, 3-meter drop protection, and handy carabiner loop.",
+    "rating": 4.8,
+    "reviewsCount": 3100,
+    "availability": "In Stock",
+    "stockCount": 20,
+    "isFeatured": true,
+    "isTrending": false,
+    "tags": [
+      "1TB NVMe SSD",
+      "1050MB/s Speed",
+      "Rugged IP65",
+      "Content Creators"
+    ],
+    "specifications": {
+      "Capacity": "1TB High-Performance NVMe SSD",
+      "Speed": "Up to 1050MB/s Read, 1000MB/s Write",
+      "Interface": "USB 3.2 Gen 2 (Type-C to C and C to A cables included)",
+      "Durability": "IP65 Water/Dust Resistance, 3-Meter Drop Protection",
+      "Warranty": "5 Years Manufacturer Limited Warranty"
+    },
+    "aiVerdict": "Top recommendation for software engineers and photographers needing blazingly fast external project storage."
+  },
+  {
+    "id": "acc-009",
+    "name": "Spigen Ultra Hybrid Shockproof MagSafe Case for Smartphones",
+    "brand": "Spigen",
+    "category": "Electronics Accessories",
+    "price": 1499,
+    "originalPrice": 2499,
+    "discountPercent": 40,
+    "image": "https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?w=800&q=80"
+    ],
+    "description": "Mil-grade drop protection case with anti-yellowing crystal clear back and shock-absorbing TPU bumper featuring Air Cushion technology and integrated strong magnetic ring.",
+    "rating": 4.7,
+    "reviewsCount": 4200,
+    "availability": "In Stock",
+    "stockCount": 55,
+    "isFeatured": false,
+    "isTrending": false,
+    "tags": [
+      "Spigen Case",
+      "Shockproof",
+      "MagSafe Compatible"
+    ],
+    "specifications": {
+      "Material": "Polycarbonate Back + Flexible TPU Bumper",
+      "Protection": "Air Cushion Technology with Mil-Grade Drop Testing",
+      "Features": "Anti-Yellowing Blue Resin, Raised Bezel Screen Protection",
+      "Warranty": "6 Months Brand Warranty"
+    },
+    "aiVerdict": "The most reliable transparent phone case that prevents shatter damage while showcasing the phone’s original color."
+  },
+  {
+    "id": "app-001",
+    "name": "Philips Digital Air Fryer with Rapid Air Technology (4.1L, 1400W, Black)",
+    "brand": "Philips",
+    "category": "Home Appliances",
+    "price": 6999,
+    "originalPrice": 11995,
+    "discountPercent": 42,
+    "image": "https://images.unsplash.com/photo-1585338107529-13afc5f02586?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1585338107529-13afc5f02586?w=800&q=80"
+    ],
+    "description": "Healthy guilt-free Indian cooking with up to 90% less oil. Features patented Rapid Air starfish design for uniform 360-degree heat circulation, digital touchscreen with 7 preset menus (samosa, fries, chicken, paneer tikka, baking), and Keep Warm function.",
+    "rating": 4.8,
+    "reviewsCount": 3890,
+    "availability": "In Stock",
+    "stockCount": 32,
+    "isFeatured": true,
+    "isTrending": true,
+    "tags": [
+      "Air Fryer",
+      "Healthy Cooking",
+      "90% Less Oil",
+      "Kitchen Essential"
+    ],
+    "specifications": {
+      "Capacity": "4.1 Litres (Serves 3-4 People)",
+      "Power": "1400 Watts Rapid Air Technology",
+      "Presets": "7 Pre-set Menus + Touchscreen Display",
+      "DishwasherSafe": "QuickClean Basket with Non-Stick Coating",
+      "Warranty": "2 Years Philips India Warranty"
+    },
+    "aiVerdict": "The single best kitchen appliance upgrade for modern health-conscious households in India."
+  },
+  {
+    "id": "app-002",
+    "name": "Xiaomi Robot Vacuum-Mop 2 Pro (LDS Laser Navigation, 3000Pa Suction)",
+    "brand": "Xiaomi",
+    "category": "Home Appliances",
+    "price": 24999,
+    "originalPrice": 39999,
+    "discountPercent": 38,
+    "image": "https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&q=80"
+    ],
+    "description": "State-of-the-art autonomous floor cleaning engineered for Indian homes. Features LDS laser radar mapping, 10,000 vibrations/min high-frequency sonic mopping for stubborn stains, 3000Pa powerful suction, and multi-floor mapping via Mi Home app.",
+    "rating": 4.7,
+    "reviewsCount": 1140,
+    "availability": "In Stock",
+    "stockCount": 12,
+    "isFeatured": true,
+    "isTrending": false,
+    "tags": [
+      "Robot Vacuum",
+      "Sonic Mopping",
+      "LDS Navigation",
+      "Smart Home"
+    ],
+    "specifications": {
+      "SuctionPower": "3000Pa High-Power Brushless Motor",
+      "Mopping": "Full-coverage High-frequency Sonic Vibration",
+      "Navigation": "Next-Gen LDS Laser Sensor",
+      "Battery": "5200mAh (Cleans over 2000 sq. ft on one charge)",
+      "App": "Mi Home App (Alexa & Google Assistant Compatible)",
+      "Warranty": "1 Year Manufacturer Onsite Warranty"
+    },
+    "aiVerdict": "A transformative time-saver for busy professionals dealing with Indian dust and daily floor maintenance."
+  },
+  {
+    "id": "app-003",
+    "name": "Kent Grand Plus RO+UV+UF+TDS Mineral Water Purifier (9L Storage)",
+    "brand": "Kent",
+    "category": "Home Appliances",
+    "price": 14999,
+    "originalPrice": 20500,
+    "discountPercent": 27,
+    "image": "https://images.unsplash.com/photo-1584992236310-6edddc08acff?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1584992236310-6edddc08acff?w=800&q=80"
+    ],
+    "description": "India’s most trusted mineral RO water purifier. Multi-stage purification process of RO+UV+UF+TDS Control retains essential natural minerals. In-tank UV disinfection ensures drinking water stays 100% pure and bacteria-free round the clock.",
+    "rating": 4.7,
+    "reviewsCount": 5200,
+    "availability": "In Stock",
+    "stockCount": 22,
+    "isFeatured": true,
+    "isTrending": true,
+    "tags": [
+      "Water Purifier",
+      "RO+UV+UF",
+      "TDS Controller",
+      "Healthy Living"
+    ],
+    "specifications": {
+      "PurificationCapacity": "20 Litres per Hour",
+      "StorageCapacity": "9 Litres Tank with Level Indicator",
+      "Technology": "RO + UV + UF + Alkaline TDS Control",
+      "InletWaterTDS": "Purifies borewell, municipal, and tanker water up to 2000 ppm",
+      "Warranty": "1 Year Warranty + 3 Years Free Service Amc"
+    },
+    "aiVerdict": "Vital health investment engineered specifically to purify diverse Indian groundwater and municipal water sources."
+  },
+  {
+    "id": "app-004",
+    "name": "Morphy Richards 1.8L Stainless Steel Electric Kettle (1500W, Cool-Touch Handle)",
+    "brand": "Morphy Richards",
+    "category": "Home Appliances",
+    "price": 1299,
+    "originalPrice": 2499,
+    "discountPercent": 48,
+    "image": "https://images.unsplash.com/photo-1594213114663-ddf4f24cf242?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1594213114663-ddf4f24cf242?w=800&q=80"
+    ],
+    "description": "Rapid-boil stainless steel electric kettle. Boils 1.8 litres of water in under 3 minutes for morning chai, green tea, instant noodles, and soup. Equipped with automatic boil-dry cut-off and 360-degree cordless swivel base.",
+    "rating": 4.6,
+    "reviewsCount": 3890,
+    "availability": "In Stock",
+    "stockCount": 70,
+    "isFeatured": false,
+    "isTrending": true,
+    "tags": [
+      "Under ₹1,500",
+      "Electric Kettle",
+      "Stainless Steel",
+      "Fast Boil"
+    ],
+    "specifications": {
+      "Capacity": "1.8 Litres",
+      "Power": "1500 Watts Concealed Heating Element",
+      "Safety": "Auto Shut-Off, Dry Boil Protection",
+      "Body": "Food-Grade SS304 Stainless Steel",
+      "Warranty": "2 Years Manufacturer Warranty"
+    },
+    "aiVerdict": "Durable, high-wattage morning convenience for hostel students and families alike."
+  },
+  {
+    "id": "app-005",
+    "name": "Havells Glaze 750W 3-Jar Mixer Grinder (100% Copper Motor, SS304 Jars)",
+    "brand": "Havells",
+    "category": "Home Appliances",
+    "price": 2899,
+    "originalPrice": 5195,
+    "discountPercent": 44,
+    "image": "https://images.unsplash.com/photo-1574269909862-7e1d70bb8078?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1574269909862-7e1d70bb8078?w=800&q=80"
+    ],
+    "description": "Heavy-duty 750W mixer grinder built to withstand demanding Indian kitchen grinding—from fibrous coconut chutney to rock-hard turmeric roots and smooth dosa batter. Features 3 food-grade stainless steel jars with flow breakers.",
+    "rating": 4.5,
+    "reviewsCount": 2800,
+    "availability": "In Stock",
+    "stockCount": 40,
+    "isFeatured": false,
+    "isTrending": false,
+    "tags": [
+      "750W Copper Motor",
+      "Mixer Grinder",
+      "3 SS Jars",
+      "Under ₹3,000"
+    ],
+    "specifications": {
+      "Motor": "750 Watts 100% Copper Winding Motor",
+      "Jars": "1.5L Wet Jar + 1.0L Dry Grinding + 0.5L Chutney Jar",
+      "Speed": "3 Speed Settings with Incher Pulse Function",
+      "Protection": "Air Channel Ventilation & Overload Thermal Protector",
+      "Warranty": "2 Years Comprehensive + 5 Years Motor Warranty"
+    },
+    "aiVerdict": "The quintessential Indian kitchen grinder engineered for long motor life and fine spice texture."
+  },
+  {
+    "id": "app-006",
+    "name": "Bajaj New Shakti Neo 15L Vertical Storage Water Geyser (Titanium Armour)",
+    "brand": "Bajaj",
+    "category": "Home Appliances",
+    "price": 5899,
+    "originalPrice": 9990,
+    "discountPercent": 41,
+    "image": "https://images.unsplash.com/photo-1584992236310-6edddc08acff?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1584992236310-6edddc08acff?w=800&q=80"
+    ],
+    "description": "Energy-efficient 5-star BEE rated storage water heater. Features Titanium Armour glass-lined inner tank technology to resist corrosion from hard water, swirling heat technology for 20% more hot water, and high pressure capability for high-rise apartments.",
+    "rating": 4.5,
+    "reviewsCount": 1940,
+    "availability": "In Stock",
+    "stockCount": 18,
+    "isFeatured": false,
+    "isTrending": false,
+    "tags": [
+      "Water Geyser",
+      "5-Star Energy",
+      "15L Storage",
+      "Hard Water Proof"
+    ],
+    "specifications": {
+      "Capacity": "15 Litres Storage",
+      "EnergyRating": "BEE 5-Star Certified Power Saving",
+      "Tank": "Titanium Armour Technology with Magnesium Anode Rod",
+      "Pressure": "8 Bar Pressure (Suitable for High-Rise Apartments)",
+      "Warranty": "2 Years on Product, 5 Years on Tank"
+    },
+    "aiVerdict": "Reliable winter bath heating solution resistant to scale and mineral buildup in Indian hard water."
+  },
+  {
+    "id": "fash-001",
+    "name": "Royal Heritage Men Embroidered Raw Silk Kurta Set (Ivory & Gold)",
+    "brand": "Royal Heritage",
+    "category": "Fashion",
+    "price": 5499,
+    "originalPrice": 7999,
+    "discountPercent": 31,
+    "image": "https://images.unsplash.com/photo-1617137984095-74e4e5e3613f?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1617137984095-74e4e5e3613f?w=800&q=80"
+    ],
+    "description": "Artisanal hand-embroidered raw silk kurta with matching churidar pajamas. Detailed with delicate zari thread work around the mandarin collar and cuffs for festive weddings and celebrations.",
+    "rating": 4.8,
+    "reviewsCount": 312,
+    "availability": "In Stock",
+    "stockCount": 18,
+    "isFeatured": true,
+    "isTrending": true,
+    "tags": [
+      "Festive Ethnic",
+      "Pure Raw Silk",
+      "Wedding Collection"
+    ],
+    "specifications": {
+      "Fabric": "100% Hand-Spun Raw Tussar Silk",
+      "Embroidery": "Zari Thread Hand Work",
+      "SetContents": "1 Long Kurta + 1 Churidar Pant",
+      "Fit": "Tailored Regular Comfort Fit",
+      "WashCare": "Dry Clean Only"
+    },
+    "aiVerdict": "Regal silhouette with breathable pure silk drape that stands out at traditional Indian ceremonies."
+  },
+  {
+    "id": "fash-002",
+    "name": "Linen Club Pure Breathable Linen Casual Shirt (Sage Olive)",
+    "brand": "Linen Club",
+    "category": "Fashion",
+    "price": 2299,
+    "originalPrice": 3499,
+    "discountPercent": 34,
+    "image": "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=800&q=80"
+    ],
+    "description": "100% pure European flax certified linen shirt. Naturally temperature-regulating for Indian summers with mother-of-pearl buttons and soft-washed garment finish.",
+    "rating": 4.6,
+    "reviewsCount": 890,
+    "availability": "In Stock",
+    "stockCount": 32,
+    "isFeatured": false,
+    "isTrending": true,
+    "tags": [
+      "Pure Linen",
+      "Summer Wear",
+      "Casual Luxury"
+    ],
+    "specifications": {
+      "Material": "100% Pure European Flax Linen",
+      "Collar": "Cutaway Collar",
+      "Sleeves": "Full Sleeves with Roll-Up Tabs",
+      "Fit": "Slim Contemporary Fit",
+      "WashCare": "Machine Wash Gentle / Line Dry in Shade"
+    },
+    "aiVerdict": "A breathable wardrobe essential that keeps you cool during hot Indian summers."
+  },
+  {
+    "id": "fash-003",
+    "name": "Anouk Pure Cotton Printed A-Line Kurti with Dupatta",
+    "brand": "Anouk",
+    "category": "Fashion",
+    "price": 1299,
+    "originalPrice": 2499,
+    "discountPercent": 48,
+    "image": "https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=800&q=80"
+    ],
+    "description": "Charming block-printed pure cambric cotton kurti featuring ethnic floral motifs, sweetheart neckline, 3/4th sleeves, and matching mulmul cotton printed dupatta.",
+    "rating": 4.7,
+    "reviewsCount": 1650,
+    "availability": "In Stock",
+    "stockCount": 45,
+    "isFeatured": true,
+    "isTrending": false,
+    "tags": [
+      "Ethnic Wear",
+      "Pure Cotton",
+      "Office Wear",
+      "Under ₹1,500"
+    ],
+    "specifications": {
+      "Fabric": "100% Cambric 60s Cotton",
+      "Pattern": "Hand-Screen Block Floral Prints",
+      "Length": "Calf Length A-Line Cut",
+      "WashCare": "Color-Fast Hand Wash in Cold Water"
+    },
+    "aiVerdict": "Graceful daily office and campus ethnic wear providing pure cotton comfort all day."
+  },
+  {
+    "id": "fash-004",
+    "name": "Vintage Heavyweight 240 GSM Oversized Cotton T-Shirt",
+    "brand": "UrbanVintage",
+    "category": "Fashion",
+    "price": 799,
+    "originalPrice": 1499,
+    "discountPercent": 47,
+    "image": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800&q=80"
+    ],
+    "description": "Structured 240 GSM combed cotton drop-shoulder streetwear tee with ribbed lycra neck collar that refuses to sag after washing.",
+    "rating": 4.5,
+    "reviewsCount": 2210,
+    "availability": "In Stock",
+    "stockCount": 68,
+    "isFeatured": false,
+    "isTrending": true,
+    "tags": [
+      "Streetwear",
+      "240 GSM Heavyweight",
+      "Under ₹1,000"
+    ],
+    "specifications": {
+      "Fabric": "100% Super-Combed Bio-Washed Cotton",
+      "Density": "240 GSM Heavyweight French Terry",
+      "Fit": "Oversized Boxy Streetwear Silhouette",
+      "Neck": "Double-Stitched Ribbed Crewneck"
+    },
+    "aiVerdict": "Durable heavyweight cotton that gives the trendy relaxed drop-shoulder aesthetic without being see-through."
+  },
+  {
+    "id": "fash-005",
+    "name": "Pack of 3 Breathable Bamboo Fibre Ankle Socks",
+    "brand": "EcoStep",
+    "category": "Fashion",
+    "price": 399,
+    "originalPrice": 799,
+    "discountPercent": 50,
+    "image": "https://images.unsplash.com/photo-1586350977771-b3b0abd50c82?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1586350977771-b3b0abd50c82?w=800&q=80"
+    ],
+    "description": "Hypoallergenic socks crafted from organic bamboo viscose with natural anti-odor and sweat-wicking properties.",
+    "rating": 4.8,
+    "reviewsCount": 1450,
+    "availability": "In Stock",
+    "stockCount": 110,
+    "isFeatured": false,
+    "isTrending": false,
+    "tags": [
+      "Under ₹500",
+      "Bamboo Fiber",
+      "Anti-Odor",
+      "Daily Essential"
+    ],
+    "specifications": {
+      "Material": "80% Bamboo Viscose, 18% Polyamide, 2% Elastane",
+      "Type": "Low-Cut Ankle Socks with Silicone Heel Grip",
+      "Features": "Natural Antibacterial, Thermoregulating, Seamless Toe"
+    },
+    "aiVerdict": "Softest daily ankle socks that prevent foot odor even during long hours in humid weather."
+  },
+  {
+    "id": "fash-006",
+    "name": "FabIndia Silk Blend Festive Nehru Jacket (Olive Gold, Mandarin Collar)",
+    "brand": "FabIndia",
+    "category": "Fashion",
+    "price": 3499,
+    "originalPrice": 4999,
+    "discountPercent": 30,
+    "image": "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=800&q=80"
+    ],
+    "description": "Classic handcrafted sleeveless Nehru jacket tailored in silk-cotton woven fabric with textured sheen, antique brass buttons, and three welt pockets.",
+    "rating": 4.7,
+    "reviewsCount": 540,
+    "availability": "In Stock",
+    "stockCount": 20,
+    "isFeatured": true,
+    "isTrending": false,
+    "tags": [
+      "Nehru Jacket",
+      "FabIndia",
+      "Festive Layering",
+      "Silk Blend"
+    ],
+    "specifications": {
+      "Fabric": "60% Silk, 40% Cotton Weave",
+      "Style": "Sleeveless Bandhgala with Mandarin Collar",
+      "Closure": "Front Button Placket with Brass Metal Buttons",
+      "WashCare": "Dry Clean Only"
+    },
+    "aiVerdict": "Instant festive elevator for any plain kurta or formal shirt."
+  },
+  {
+    "id": "fash-007",
+    "name": "Levi's 511 Slim Fit Stretch Dark Denim Jeans",
+    "brand": "Levi's",
+    "category": "Fashion",
+    "price": 2699,
+    "originalPrice": 3999,
+    "discountPercent": 33,
+    "image": "https://images.unsplash.com/photo-1542272604-780c96856592?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1542272604-780c96856592?w=800&q=80"
+    ],
+    "description": "The iconic modern slim cut denim with room to move. Crafted from premium stretch cotton denim that maintains its deep indigo shape wash after wash.",
+    "rating": 4.7,
+    "reviewsCount": 3800,
+    "availability": "In Stock",
+    "stockCount": 44,
+    "isFeatured": false,
+    "isTrending": true,
+    "tags": [
+      "Levi's",
+      "Stretch Denim",
+      "Slim Fit",
+      "Wardrobe Classic"
+    ],
+    "specifications": {
+      "Fit": "511 Slim Fit (Sits below waist, slim from hip to ankle)",
+      "Fabric": "98% Cotton, 2% Elastane Stretch Denim",
+      "Features": "Classic 5-pocket styling with arcuate stitch on rear pockets"
+    },
+    "aiVerdict": "The quintessential rugged denim staple that pairs effortlessly with sneakers, t-shirts, and casual blazers."
+  },
+  {
+    "id": "home-001",
+    "name": "AeroForm Ergonomic High-Back Mesh Desk Chair",
+    "brand": "AeroForm",
+    "category": "Home & Living",
+    "price": 16499,
+    "originalPrice": 22000,
+    "discountPercent": 25,
+    "image": "https://images.unsplash.com/photo-1580481077195-c3f8864f51c4?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1580481077195-c3f8864f51c4?w=800&q=80"
+    ],
+    "description": "Work-from-home ergonomic office chair featuring Korean breathable mesh, dynamic self-adjusting lumbar support, 3D armrests, and Class-4 heavy-duty gas lift.",
+    "rating": 4.8,
+    "reviewsCount": 654,
+    "availability": "In Stock",
+    "stockCount": 22,
+    "isFeatured": true,
+    "isTrending": false,
+    "tags": [
+      "Ergonomics",
+      "WFH Essential",
+      "Lumbar Support"
+    ],
+    "specifications": {
+      "Mesh": "Imported Breathable High-Tension Korean Mesh",
+      "Mechanism": "Multi-lock Synchro Tilt Mechanism (90° to 135°)",
+      "Armrests": "3D Height, Angle and Depth Adjustable",
+      "GasLift": "BIFMA Certified Class 4 Hydraulic Cylinder",
+      "Warranty": "3 Years Comprehensive Warranty"
+    },
+    "aiVerdict": "Eliminates lower back ache during 10-hour coding and studying marathons."
+  },
+  {
+    "id": "home-002",
+    "name": "Handcrafted Brass Diya & Essential Oil Diffuser Set",
+    "brand": "VedicCraft",
+    "category": "Home & Living",
+    "price": 1499,
+    "originalPrice": 2499,
+    "discountPercent": 40,
+    "image": "https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?w=800&q=80"
+    ],
+    "description": "Traditional solid bell-metal brass oil lamp paired with an integrated top cup for pure sandalwood and camphor essential oils.",
+    "rating": 4.9,
+    "reviewsCount": 420,
+    "availability": "In Stock",
+    "stockCount": 35,
+    "isFeatured": false,
+    "isTrending": true,
+    "tags": [
+      "Handcrafted",
+      "Festive Gifting",
+      "Pure Brass",
+      "Under ₹1,500"
+    ],
+    "specifications": {
+      "Material": "100% Solid Pure Bell-Metal Brass",
+      "Finish": "Hand-Polished Antique Golden Gloss",
+      "Includes": "Diya Lamp + 15ml Pure Mysore Sandalwood Oil"
+    },
+    "aiVerdict": "Exquisite housewarming and Diwali gifting piece that spreads authentic soothing fragrances."
+  },
+  {
+    "id": "home-003",
+    "name": "Jaipur Block-Printed 300 TC Cotton King Bedsheet with Pillow Covers",
+    "brand": "Jaipur Heritage",
+    "category": "Home & Living",
+    "price": 1899,
+    "originalPrice": 2999,
+    "discountPercent": 37,
+    "image": "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=800&q=80"
+    ],
+    "description": "Authentic Sanganeri block-printed king bedsheet using AZO-free skin-friendly natural dyes on long-staple 300 thread count percale cotton.",
+    "rating": 4.7,
+    "reviewsCount": 810,
+    "availability": "In Stock",
+    "stockCount": 40,
+    "isFeatured": true,
+    "isTrending": false,
+    "tags": [
+      "King Size",
+      "100% Cotton",
+      "Hand Block Printed"
+    ],
+    "specifications": {
+      "Dimensions": "King Size (108 x 108 inches / 274 x 274 cm)",
+      "ThreadCount": "300 TC Long-Staple Pure Cotton",
+      "PackageContents": "1 King Size Bedsheet + 2 Flapped Pillow Covers"
+    },
+    "aiVerdict": "Generous king size dimensions that tuck deeply into thick mattresses without slipping off."
+  },
+  {
+    "id": "home-004",
+    "name": "Smart Touch Sensor Rechargeable LED Bedside Lamp",
+    "brand": "Lumos",
+    "category": "Home & Living",
+    "price": 699,
+    "originalPrice": 1299,
+    "discountPercent": 46,
+    "image": "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=800&q=80"
+    ],
+    "description": "3-level warm white touch dimming with RGB color cycling. Powered by a built-in 1800mAh rechargeable battery charged over USB-C.",
+    "rating": 4.6,
+    "reviewsCount": 1540,
+    "availability": "In Stock",
+    "stockCount": 65,
+    "isFeatured": false,
+    "isTrending": true,
+    "tags": [
+      "Under ₹1,000",
+      "Touch Sensor",
+      "LED Lamp",
+      "Rechargeable"
+    ],
+    "specifications": {
+      "Brightness": "3 Warm White Levels (Low, Medium, Reading High) + RGB Cycle",
+      "Battery": "1800mAh Li-ion (Up to 14 Hours Runtime on Low)",
+      "Charging": "USB Type-C Fast Input (Cable included)"
+    },
+    "aiVerdict": "Gentle on sleepy eyes and portable enough to carry around the house during power cuts."
+  },
+  {
+    "id": "home-005",
+    "name": "Nordic Ceramic Coffee Mug with Natural Bamboo Coaster & Gold Spoon",
+    "brand": "Nordic",
+    "category": "Home & Living",
+    "price": 499,
+    "originalPrice": 999,
+    "discountPercent": 50,
+    "image": "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&q=80"
+    ],
+    "description": "Minimalist matte-glazed ceramic coffee mug (380ml) with natural organic bamboo lid-cum-coaster and food-grade stainless steel gold stirring spoon.",
+    "rating": 4.7,
+    "reviewsCount": 940,
+    "availability": "In Stock",
+    "stockCount": 80,
+    "isFeatured": false,
+    "isTrending": false,
+    "tags": [
+      "Under ₹500",
+      "Coffee Mug",
+      "Gifting",
+      "Ceramic"
+    ],
+    "specifications": {
+      "Capacity": "380 ml Comfort Volume",
+      "Material": "High-Fired Food Grade Ceramic (Microwave Safe)",
+      "Accessories": "Natural Bamboo Coaster Lid + Gold Plated Spoon"
+    },
+    "aiVerdict": "Aesthetic desk upgrade for hot filter coffee and green tea breaks."
+  },
+  {
+    "id": "home-006",
+    "name": "Wakefit Orthopedic Memory Foam Dual-Comfort Mattress (Queen, 78x60x6)",
+    "brand": "Wakefit",
+    "category": "Home & Living",
+    "price": 7499,
+    "originalPrice": 12999,
+    "discountPercent": 42,
+    "image": "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=800&q=80"
+    ],
+    "description": "Dual-comfort reversible orthopedic mattress. Features a medium-soft breathable memory foam side for pressure relief and a medium-firm high-resilience foam side for optimum spine alignment.",
+    "rating": 4.8,
+    "reviewsCount": 14200,
+    "availability": "In Stock",
+    "stockCount": 15,
+    "isFeatured": true,
+    "isTrending": false,
+    "tags": [
+      "Wakefit Mattress",
+      "Orthopedic Memory Foam",
+      "Dual Comfort"
+    ],
+    "specifications": {
+      "Dimensions": "Queen Size (78 x 60 x 6 inches)",
+      "FoamLayers": "Next-Gen Memory Foam + High Resilience HR Base Foam",
+      "Cover": "High GSM Spun Knitted Breathable Removable Zipper Cover",
+      "Warranty": "10 Years Manufacturer Warranty"
+    },
+    "aiVerdict": "India’s highest-rated orthopedic mattress delivering spine relief and restorative sleep posture."
+  },
+  {
+    "id": "home-007",
+    "name": "Solimo 100% Cotton Blackout Grommet Curtains (Set of 2, 7 Feet, Charcoal)",
+    "brand": "Solimo",
+    "category": "Home & Living",
+    "price": 1299,
+    "originalPrice": 2299,
+    "discountPercent": 43,
+    "image": "https://images.unsplash.com/photo-1513694203232-719a280e022f?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1513694203232-719a280e022f?w=800&q=80"
+    ],
+    "description": "Heavy 3-layer weave thermal blackout room curtains. Blocks 95% of harsh afternoon sunlight, insulates against outside summer heat, and dampens street noise for uninterrupted sleep.",
+    "rating": 4.5,
+    "reviewsCount": 3100,
+    "availability": "In Stock",
+    "stockCount": 50,
+    "isFeatured": false,
+    "isTrending": true,
+    "tags": [
+      "Blackout Curtains",
+      "Under ₹1,500",
+      "Thermal Insulated",
+      "Set of 2"
+    ],
+    "specifications": {
+      "Dimensions": "Set of 2 (Each 4 Feet Wide x 7 Feet Drop / Door Height)",
+      "Fabric": "Triple-Weave Heavyweight Polyester-Cotton Blend",
+      "Grommets": "8 Stainless Steel Eyelets per Panel"
+    },
+    "aiVerdict": "Essential bedroom investment to block blinding morning sun and lower room temperature during hot months."
+  },
+  {
+    "id": "car-001",
+    "name": "Karcher K2 Universal High-Pressure Compact Car Washer (110 Bar, 1400W)",
+    "brand": "Karcher",
+    "category": "Car Care",
+    "price": 8999,
+    "originalPrice": 12999,
+    "discountPercent": 31,
+    "image": "https://images.unsplash.com/photo-1607860108855-64acf2078ed9?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1607860108855-64acf2078ed9?w=800&q=80"
+    ],
+    "description": "German-engineered 110-bar pressure washer with dirt blaster rotating nozzle for stubborn wheel well mud, bug splatters, and driveway cleaning with 80% water savings.",
+    "rating": 4.8,
+    "reviewsCount": 940,
+    "availability": "In Stock",
+    "stockCount": 16,
+    "isFeatured": true,
+    "isTrending": false,
+    "tags": [
+      "High Pressure Washer",
+      "German Engineering",
+      "110 Bar"
+    ],
+    "specifications": {
+      "Pressure": "110 Bar Max Operating Pressure",
+      "Power": "1400 Watts Air-Cooled Universal Motor",
+      "FlowRate": "360 Litres per Hour Max",
+      "Hose": "3-Meter High Pressure Hose with Quick Connect",
+      "Warranty": "1 Year Karcher India Warranty"
+    },
+    "aiVerdict": "Saves hundreds of Rupees per month on commercial car wash bills while delivering showroom water pressure at home."
+  },
+  {
+    "id": "car-002",
+    "name": "Bergmann Typhoon Heavy Duty 12V Digital Car Tyre Inflator (150 PSI)",
+    "brand": "Bergmann",
+    "category": "Car Care",
+    "price": 2199,
+    "originalPrice": 3499,
+    "discountPercent": 37,
+    "image": "https://images.unsplash.com/photo-1486006920555-c77dce18193b?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1486006920555-c77dce18193b?w=800&q=80"
+    ],
+    "description": "100% pure copper direct-drive motor that inflates a standard R15 car tyre from 0 to 35 PSI in under 2.5 minutes. Features auto-shutoff at preset target pressure.",
+    "rating": 4.7,
+    "reviewsCount": 3120,
+    "availability": "In Stock",
+    "stockCount": 42,
+    "isFeatured": true,
+    "isTrending": true,
+    "tags": [
+      "Tyre Inflator",
+      "Auto Shut-Off",
+      "100% Copper",
+      "Highway Emergency"
+    ],
+    "specifications": {
+      "Motor": "100% Pure Heavy-Duty Copper Core Motor",
+      "Speed": "0 to 35 PSI in 2.5 Minutes",
+      "Display": "Backlit Digital Pressure Gauge in PSI, BAR, KPA",
+      "Features": "Auto Cut-Off + Emergency Bright LED Flashlight",
+      "Warranty": "1 Year Replacement Warranty"
+    },
+    "aiVerdict": "Highway emergency essential that prevents stranding during punctures or slow air leaks on Indian highways."
+  },
+  {
+    "id": "car-003",
+    "name": "WaveX 3-in-1 Ceramic Coating & Hydrophobic Paint Sealant (500ml)",
+    "brand": "WaveX",
+    "category": "Car Care",
+    "price": 1299,
+    "originalPrice": 1999,
+    "discountPercent": 35,
+    "image": "https://images.unsplash.com/photo-1601362840469-51e4d8d58785?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1601362840469-51e4d8d58785?w=800&q=80"
+    ],
+    "description": "SiO2 ceramic spray sealant delivering extreme water beading, mirror candy gloss, and UV oxidation protection that lasts up to 6 months per coat.",
+    "rating": 4.6,
+    "reviewsCount": 1840,
+    "availability": "In Stock",
+    "stockCount": 38,
+    "isFeatured": false,
+    "isTrending": true,
+    "tags": [
+      "Ceramic Coating",
+      "Hydrophobic Beading",
+      "Under ₹1,500"
+    ],
+    "specifications": {
+      "Volume": "500ml Spray Bottle with Mist Trigger",
+      "Formulation": "Advanced SiO2 Polymer Hybrid Ceramic",
+      "Durability": "Up to 6 Months Hydrophobic Protection per application"
+    },
+    "aiVerdict": "Effortless spray-on wipe-off ceramic protection that stops acidic bird droppings and monsoon rain spots from etching car paint."
+  },
+  {
+    "id": "car-004",
+    "name": "SoftSpun 800 GSM Dual-Plush Microfiber Drying Towels (Set of 2, 40x40cm)",
+    "brand": "SoftSpun",
+    "category": "Car Care",
+    "price": 499,
+    "originalPrice": 999,
+    "discountPercent": 50,
+    "image": "https://images.unsplash.com/photo-1563720223185-11003d516935?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1563720223185-11003d516935?w=800&q=80"
+    ],
+    "description": "Ultra-plush 800 GSM density with rounded silk edge trim. Absorbs up to 10x its weight in water to dry cars with zero swirl marks or lint residue.",
+    "rating": 4.9,
+    "reviewsCount": 5200,
+    "availability": "In Stock",
+    "stockCount": 110,
+    "isFeatured": true,
+    "isTrending": true,
+    "tags": [
+      "Best Under ₹500",
+      "800 GSM Microfiber",
+      "Zero Swirls",
+      "Top Rated"
+    ],
+    "specifications": {
+      "GSM": "800 GSM Ultra-Dense Dual Plush Fiber",
+      "Dimensions": "40 x 40 cm (Set of 2 Towels: Yellow & Grey)",
+      "Edge": "Scratch-Proof Silk Banded Edging"
+    },
+    "aiVerdict": "Must-have drying towel that guarantees swirl-free and streak-free paintwork."
+  },
+  {
+    "id": "car-005",
+    "name": "3M Car Dashboard Cleaner & UV Protection Polish (250ml)",
+    "brand": "3M",
+    "category": "Car Care",
+    "price": 349,
+    "originalPrice": 599,
+    "discountPercent": 42,
+    "image": "https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?w=800&q=80"
+    ],
+    "description": "Restores dry, sun-faded vinyl, plastic, and rubber dashboard trims to a rich, non-greasy satin factory finish with built-in UV blockers.",
+    "rating": 4.7,
+    "reviewsCount": 4120,
+    "availability": "In Stock",
+    "stockCount": 95,
+    "isFeatured": false,
+    "isTrending": false,
+    "tags": [
+      "Under ₹500",
+      "3M Polish",
+      "UV Protection",
+      "Interior Detailing"
+    ],
+    "specifications": {
+      "Volume": "250ml Ergonomic Spray Bottle",
+      "Application": "Dashboard, Door Panels, Center Console, Rubber Trims",
+      "Finish": "Non-Oily, Anti-Static Dust Repelling Satin Glow"
+    },
+    "aiVerdict": "Reliable 3M formulation that shields dashboards against harsh Indian sun cracking without attracting dust."
+  },
+  {
+    "id": "car-006",
+    "name": "Godrej aer O Luxury Hanging Car Fragrance Pod (Cool Surf Blue, 10g)",
+    "brand": "Godrej",
+    "category": "Car Care",
+    "price": 299,
+    "originalPrice": 399,
+    "discountPercent": 25,
+    "image": "https://images.unsplash.com/photo-1508974239320-0a029497e820?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1508974239320-0a029497e820?w=800&q=80"
+    ],
+    "description": "Aesthetic hanging fragrance membrane pod delivering up to 60 days of refreshing ocean breeze scent. Completely spill-proof and leak-proof.",
+    "rating": 4.6,
+    "reviewsCount": 6800,
+    "availability": "In Stock",
+    "stockCount": 140,
+    "isFeatured": false,
+    "isTrending": false,
+    "tags": [
+      "Under ₹300",
+      "Car Freshener",
+      "Spill-Proof",
+      "60 Days"
+    ],
+    "specifications": {
+      "Lifespan": "Up to 60 Days Continuous Release",
+      "Mechanism": "Spill-Proof Diffusion Membrane with Hanging Cord",
+      "Aroma": "Cool Surf Blue Ocean Notes"
+    },
+    "aiVerdict": "Longest-lasting car freshener under ₹300 that never leaks onto dashboard trims."
+  },
+  {
+    "id": "car-007",
+    "name": "Turtle Wax Super Hard Shell Carnauba Liquid Car Wax (500ml)",
+    "brand": "Turtle Wax",
+    "category": "Car Care",
+    "price": 649,
+    "originalPrice": 999,
+    "discountPercent": 35,
+    "image": "https://images.unsplash.com/photo-1607860108855-64acf2078ed9?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1607860108855-64acf2078ed9?w=800&q=80"
+    ],
+    "description": "The legendary hard shell liquid car wax formula enriched with pure Brazilian Carnauba. Fills fine swirl marks, cleans light oxidation, and leaves a high-gloss protective shield that repels rain and road grime.",
+    "rating": 4.8,
+    "reviewsCount": 2950,
+    "availability": "In Stock",
+    "stockCount": 50,
+    "isFeatured": false,
+    "isTrending": true,
+    "tags": [
+      "Carnauba Wax",
+      "High Gloss",
+      "Under ₹1,000",
+      "Paint Protection"
+    ],
+    "specifications": {
+      "Volume": "500ml Liquid Bottle",
+      "ActiveAgent": "Pure Brazilian Carnauba Wax + Clear Coat Polishing Resins",
+      "Durability": "Up to 12 Months Hard Shell Barrier Protection"
+    },
+    "aiVerdict": "Legendary paste-wax shine with the easy application speed of a liquid wax."
+  },
+  {
+    "id": "acc-001",
+    "name": "Luminary Chrono Sapphire Automatic Watch",
+    "brand": "Luminary",
+    "category": "Electronics Accessories",
+    "price": 38500,
+    "originalPrice": 45000,
+    "discountPercent": 14,
+    "image": "https://images.unsplash.com/photo-1524805444758-089113d48a6d?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1524805444758-089113d48a6d?w=800&q=80"
+    ],
+    "description": "Handcrafted luxury automatic chronograph with Japanese Miyota 24-jewel movement, scratch-resistant sapphire crystal glass, and genuine Italian Horween leather strap.",
+    "rating": 4.9,
+    "reviewsCount": 188,
+    "availability": "In Stock",
+    "stockCount": 10,
+    "isFeatured": true,
+    "isTrending": false,
+    "tags": [
+      "Automatic Movement",
+      "Sapphire Glass",
+      "Luxury Watch"
+    ],
+    "specifications": {
+      "Movement": "Japanese 24-Jewel Automatic Self-Winding",
+      "CaseDiameter": "41mm 316L Stainless Steel",
+      "WaterResistance": "10 ATM (100 Meters)",
+      "Warranty": "3 Years International Warranty"
+    },
+    "aiVerdict": "Timeless horological craft that looks twice its price point."
+  },
+  {
+    "id": "acc-002",
+    "name": "UrbanTraveller Water-Resistant Anti-Theft Laptop Backpack (30L)",
+    "brand": "UrbanTraveller",
+    "category": "Electronics Accessories",
+    "price": 2799,
+    "originalPrice": 4499,
+    "discountPercent": 38,
+    "image": "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&q=80"
+    ],
+    "description": "Engineered for tech commuters with hidden anti-theft zipper entry, dedicated padded sleeve fitting up to 16-inch laptops, integrated external USB charge port, and water-repellent Cordura fabric.",
+    "rating": 4.7,
+    "reviewsCount": 1420,
+    "availability": "In Stock",
+    "stockCount": 45,
+    "isFeatured": false,
+    "isTrending": true,
+    "tags": [
+      "Laptop Backpack",
+      "Anti-Theft",
+      "30L Volume",
+      "Water Resistant"
+    ],
+    "specifications": {
+      "Capacity": "30 Litres Multi-Compartment Storage",
+      "LaptopFit": "Dedicated Padded Pocket for up to 16\" Laptops",
+      "Fabric": "900D Water-Repellent High-Density Oxford Polyester",
+      "Warranty": "1 Year Brand Replacement Warranty"
+    },
+    "aiVerdict": "Ergonomic weight distribution cushions heavy laptop loads on long metro commutes."
+  },
+  {
+    "id": "acc-003",
+    "name": "Polarized Aviator Sunglasses with UV400 Protection (Gunmetal)",
+    "brand": "Horizon",
+    "category": "Electronics Accessories",
+    "price": 1599,
+    "originalPrice": 2999,
+    "discountPercent": 47,
+    "image": "https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=800&q=80"
+    ],
+    "description": "Classic military-inspired aviator sunglasses featuring glare-cutting triacetate polarized lenses, lightweight stainless steel frame, and 100% UV400 blocking.",
+    "rating": 4.6,
+    "reviewsCount": 890,
+    "availability": "In Stock",
+    "stockCount": 38,
+    "isFeatured": false,
+    "isTrending": false,
+    "tags": [
+      "Polarized",
+      "UV400",
+      "Aviator",
+      "Under ₹2,000"
+    ],
+    "specifications": {
+      "Lens": "Triacetate Cellulose (TAC) Polarized with Anti-Glare Coating",
+      "Protection": "100% UV400 Protection (UVA & UVB)",
+      "Frame": "Corrosion-Resistant Stainless Steel with Spring Hinges"
+    },
+    "aiVerdict": "Eliminates blinding asphalt glare during highway driving in Indian daylight."
+  },
+  {
+    "id": "acc-004",
+    "name": "WildHorn Full-Grain Vegetable Tanned Leather RFID Wallet (Cognac Brown)",
+    "brand": "WildHorn",
+    "category": "Electronics Accessories",
+    "price": 999,
+    "originalPrice": 1999,
+    "discountPercent": 50,
+    "image": "https://images.unsplash.com/photo-1627123424574-724758594e93?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1627123424574-724758594e93?w=800&q=80"
+    ],
+    "description": "Handcrafted slim bi-fold wallet made from 100% full-grain oil-pulled genuine leather. Features RFID-blocking lining to protect credit cards from digital theft.",
+    "rating": 4.7,
+    "reviewsCount": 3200,
+    "availability": "In Stock",
+    "stockCount": 60,
+    "isFeatured": true,
+    "isTrending": true,
+    "tags": [
+      "Full Grain Leather",
+      "RFID Protection",
+      "Under ₹1,000"
+    ],
+    "specifications": {
+      "Material": "100% Genuine Full-Grain Vegetable Tanned Cowhide Leather",
+      "Pockets": "8 Dedicated Card Slots + 2 Currency Compartments + Coin Pocket",
+      "Security": "Certified RFID Blocking 13.56 MHz Shielding"
+    },
+    "aiVerdict": "Ages into a rich golden patina over time; slim enough to never bulge in your front pocket."
+  },
+  {
+    "id": "acc-005",
+    "name": "Sleek Aircraft-Aluminium Key Organizer & Multi-Tool",
+    "brand": "KeyForge",
+    "category": "Electronics Accessories",
+    "price": 449,
+    "originalPrice": 899,
+    "discountPercent": 50,
+    "image": "https://images.unsplash.com/photo-1582880790858-a5c92c3a50d2?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1582880790858-a5c92c3a50d2?w=800&q=80"
+    ],
+    "description": "Compact swiss-style key organizer holding up to 8 keys in silent alignment. Eliminates pocket jingling and thigh poking with built-in bottle opener.",
+    "rating": 4.4,
+    "reviewsCount": 1100,
+    "availability": "In Stock",
+    "stockCount": 90,
+    "isFeatured": false,
+    "isTrending": false,
+    "tags": [
+      "Under ₹500",
+      "Key Organizer",
+      "EDC",
+      "Aircraft Aluminum"
+    ],
+    "specifications": {
+      "Material": "Aircraft Grade 6061-T6 Anodized Aluminium",
+      "Capacity": "Holds 2 to 8 Standard House / Office Keys",
+      "IntegratedTools": "Bottle Opener, Flathead Screwdriver, Carabiner Loop"
+    },
+    "aiVerdict": "Eliminates noisy key jingling and stops keys from scratching smartphone screens in pockets."
+  }
+];
+
+export function getProductById(id) {
+  if (!id) return null;
+  return PRODUCTS.find((p) => p.id === id) || null;
+}
+
+export function getFeaturedProducts() {
+  return PRODUCTS.filter((p) => p.isFeatured);
+}
+
+export function getTrendingProducts() {
+  return PRODUCTS.filter((p) => p.isTrending);
+}
+
+export function getProductsByCategory(categoryName) {
+  if (!categoryName || categoryName.toLowerCase() === 'all') return PRODUCTS;
+  const catLower = categoryName.toLowerCase().trim();
+  return PRODUCTS.filter((p) => {
+    const pCat = p.category.toLowerCase().trim();
+    if (pCat === catLower) return true;
+    if (catLower === 'electronics') {
+      return ['electronics', 'smartphones', 'laptops', 'tablets', 'headphones & earbuds', 'smartwatches', 'electronics accessories'].includes(pCat);
+    }
+    if (catLower === 'accessories') {
+      return ['accessories', 'electronics accessories'].includes(pCat);
+    }
+    return false;
+  });
+}
+
+export const TESTIMONIALS = [
+  {
+    id: 't-1',
+    name: 'Aarav Sharma',
+    city: 'Bengaluru, Karnataka',
+    role: 'Software Engineer',
+    rating: 5,
+    comment: 'I asked the AI concierge: "Suggest a smartphone under ₹20,000 for gaming and fast charging". It instantly recommended the OnePlus Nord CE 4 with 100W charging and the iQOO Z9s with Dimensity 7300. The comparison feature was incredibly accurate!',
+    verified: true,
+  },
+  {
+    id: 't-2',
+    name: 'Pooja Iyer',
+    city: 'Mumbai, Maharashtra',
+    role: 'Product Designer',
+    rating: 5,
+    comment: 'The Indian Rupee pricing formatting, honest specs, and fast cart experience make this feel like a luxury boutique. The Ergonomic AeroForm chair has transformed my back comfort.',
+    verified: true,
+  },
+  {
+    id: 't-3',
+    name: 'Rohan Verma',
+    city: 'Delhi NCR',
+    role: 'Automobile Enthusiast',
+    rating: 5,
+    comment: 'Finally an e-commerce platform that has a curated Car Care section with realistic products like Bergmann inflators and WaveX ceramic sprays. Delivered securely with zero hassle.',
+    verified: true,
+  },
+];
