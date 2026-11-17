@@ -1,5 +1,10 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
 import { PRODUCTS, getProductById as getMockProductById } from '../data/mockProducts.js';
+import {
+  extractBudget,
+  extractCategory,
+  ELECTRONICS_CHILD_CATEGORIES,
+} from '../lib/budgetParser.js';
 
 /**
  * Normalizes Supabase product database record to application product model
@@ -26,6 +31,75 @@ function normalizeProduct(p) {
     tags: Array.isArray(p.tags) ? p.tags : [],
     aiVerdict: p.ai_verdict || '',
   };
+}
+
+/**
+ * Natural language budget and category filter utility for search inputs
+ */
+function applySearchAndBudget(products, search, currentCategory = 'All') {
+  if (!search || !search.trim()) return products;
+
+  let result = products;
+  const budget = extractBudget(search);
+  const parsedCat = extractCategory(search);
+
+  // 1. Strict budget filtering if specified in search query
+  if (budget.hasBudget) {
+    if (budget.maxPrice !== null) {
+      result = result.filter((p) => p.price <= budget.maxPrice);
+    }
+    if (budget.minPrice !== null && budget.budgetType !== 'max') {
+      result = result.filter((p) => p.price >= budget.minPrice);
+    }
+  }
+
+  // 2. Strict category filtering if specified in search query and category is 'All'
+  if (parsedCat.hasCategory && (!currentCategory || currentCategory.toLowerCase() === 'all')) {
+    if (parsedCat.isParentElectronics) {
+      result = result.filter((p) => ELECTRONICS_CHILD_CATEGORIES.includes(p.category));
+    } else {
+      result = result.filter(
+        (p) => p.category && p.category.toLowerCase() === parsedCat.category.toLowerCase()
+      );
+    }
+  }
+
+  // 3. Clean residual search keywords (brands, model names, specs)
+  let cleanSearch = search.toLowerCase();
+  if (budget.originalMatch) {
+    cleanSearch = cleanSearch.replace(budget.originalMatch.toLowerCase(), ' ');
+  }
+  if (parsedCat.matchedKeywords) {
+    for (const kw of parsedCat.matchedKeywords) {
+      cleanSearch = cleanSearch.replace(kw.toLowerCase(), ' ');
+    }
+  }
+
+  cleanSearch = cleanSearch
+    .replace(/\b(show|me|find|recommend|products?|items?|best|for|under|below|within|rupees?|inr|₹)\b/gi, ' ')
+    .replace(/[^\w\s]/g, ' ')
+    .trim();
+
+  if (cleanSearch) {
+    const terms = cleanSearch.split(/\s+/).filter((t) => t.length > 1);
+    if (terms.length > 0) {
+      result = result.filter((p) =>
+        terms.every(
+          (term) =>
+            p.name.toLowerCase().includes(term) ||
+            (p.description && p.description.toLowerCase().includes(term)) ||
+            (p.category && p.category.toLowerCase().includes(term)) ||
+            (p.brand && p.brand.toLowerCase().includes(term)) ||
+            (p.tags && p.tags.some((t) => t.toLowerCase().includes(term))) ||
+            Object.values(p.specifications || {}).some((v) =>
+              String(v).toLowerCase().includes(term)
+            )
+        )
+      );
+    }
+  }
+
+  return result;
 }
 
 export const productService = {
@@ -72,19 +146,8 @@ export const productService = {
       // Transform and apply client-side text search & bracket sorting
       let products = data.map(normalizeProduct);
 
-      // Search filter
-      if (search && search.trim()) {
-        const q = search.toLowerCase().trim();
-        products = products.filter(
-          (p) =>
-            p.name.toLowerCase().includes(q) ||
-            p.description.toLowerCase().includes(q) ||
-            p.category.toLowerCase().includes(q) ||
-            (p.brand && p.brand.toLowerCase().includes(q)) ||
-            p.tags.some((t) => t.toLowerCase().includes(q)) ||
-            Object.values(p.specifications || {}).some((v) => String(v).toLowerCase().includes(q))
-        );
-      }
+      // Search filter with natural language budget and category understanding
+      products = applySearchAndBudget(products, search, category);
 
       // Price bracket filter
       if (priceBracket && priceBracket !== 'All') {
@@ -227,20 +290,8 @@ export const productService = {
       });
     }
 
-    if (search && search.trim()) {
-      const q = search.toLowerCase().trim();
-      result = result.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.description.toLowerCase().includes(q) ||
-          p.category.toLowerCase().includes(q) ||
-          (p.brand && p.brand.toLowerCase().includes(q)) ||
-          (p.tags && p.tags.some((t) => t.toLowerCase().includes(q))) ||
-          Object.values(p.specifications || {}).some((v) =>
-            String(v).toLowerCase().includes(q)
-          )
-      );
-    }
+    // Search filter with natural language budget and category understanding
+    result = applySearchAndBudget(result, search, category);
 
     if (priceBracket && priceBracket !== 'All') {
       result = result.filter((p) => {
