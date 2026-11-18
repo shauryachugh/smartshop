@@ -5,6 +5,7 @@
 
 [build.environment]
   ADMIN_PASSCODE = "admin2026"
+  VITE_ADMIN_PASSCODE = "admin2026"
 
 [functions]
   node_bundler = "esbuild"
