@@ -491,6 +491,7 @@ export async function handler(event, context) {
             sourceWebsite: productA.sourceWebsite,
             sourceType: 'external',
             sourceUrl: productA.sourceUrl,
+            extractionStatus: productA.extractionStatus || (productA.isPartial ? 'partial' : 'success'),
             highlights: Object.entries(productA.specifications || {}).slice(0, 4).map(([k, v]) => `${k}: ${v}`),
             bestFor: compResult.productAnalysis?.find((pa) => pa.productId === productA.id)?.bestFor || `Available on ${productA.sourceWebsite}`,
           },
@@ -505,6 +506,7 @@ export async function handler(event, context) {
             sourceWebsite: productB.sourceWebsite,
             sourceType: 'external',
             sourceUrl: productB.sourceUrl,
+            extractionStatus: productB.extractionStatus || (productB.isPartial ? 'partial' : 'success'),
             highlights: Object.entries(productB.specifications || {}).slice(0, 4).map(([k, v]) => `${k}: ${v}`),
             bestFor: compResult.productAnalysis?.find((pa) => pa.productId === productB.id)?.bestFor || `Available on ${productB.sourceWebsite}`,
           },
@@ -512,8 +514,8 @@ export async function handler(event, context) {
         verdict: compResult.valueForMoneyVerdict?.reason || 'Both products offer competitive features for their respective prices.',
       };
 
-      const priceA = productA.price ? `₹${productA.price.toLocaleString('en-IN')}` : 'Price unverified';
-      const priceB = productB.price ? `₹${productB.price.toLocaleString('en-IN')}` : 'Price unverified';
+      const priceA = (productA.price && productA.price > 0) ? `₹${productA.price.toLocaleString('en-IN')}` : 'Price unavailable';
+      const priceB = (productB.price && productB.price > 0) ? `₹${productB.price.toLocaleString('en-IN')}` : 'Price unavailable';
 
       const reply = `Here is a side-by-side comparison between your two external products:\n\n` +
         `• **${productA.name}** (${priceA}) [**${productA.sourceTag}**]\n` +
@@ -651,6 +653,7 @@ export async function handler(event, context) {
           sourceWebsite: productA.sourceWebsite,
           sourceType: 'external',
           sourceUrl: productA.sourceUrl,
+          extractionStatus: productA.extractionStatus || (productA.isPartial ? 'partial' : 'success'),
           highlights: Object.entries(productA.specifications || {}).slice(0, 4).map(([k, v]) => `${k}: ${v}`),
           bestFor: compResult.productAnalysis?.find((pa) => pa.productId === productA.id)?.bestFor || `External offering from ${productA.sourceWebsite}`,
         },
@@ -665,6 +668,7 @@ export async function handler(event, context) {
           sourceWebsite: productB.sourceWebsite,
           sourceType: 'internal',
           sourceUrl: productB.sourceUrl,
+          extractionStatus: 'success',
           highlights: Object.entries(productB.specifications || {}).slice(0, 4).map(([k, v]) => `${k}: ${v}`),
           bestFor: compResult.productAnalysis?.find((pa) => pa.productId === productB.id)?.bestFor || 'In-stock in ShopSmart AI verified catalogue',
         },
@@ -672,8 +676,8 @@ export async function handler(event, context) {
       verdict: compResult.valueForMoneyVerdict?.reason || 'Both products offer compelling features within their price classes.',
     };
 
-    const priceA = productA.price ? `₹${productA.price.toLocaleString('en-IN')}` : 'Price unverified';
-    const priceB = productB.price ? `₹${productB.price.toLocaleString('en-IN')}` : 'Price unverified';
+    const priceA = (productA.price && productA.price > 0) ? `₹${productA.price.toLocaleString('en-IN')}` : 'Price unavailable';
+    const priceB = (productB.price && productB.price > 0) ? `₹${productB.price.toLocaleString('en-IN')}` : 'Price unavailable';
 
     const reply = `Here is a side-by-side comparison between the external product from **${productA.sourceWebsite}** and our internal catalogue product:\n\n` +
       `• **${productA.name}** (${priceA}) [**${productA.sourceTag}**]\n` +

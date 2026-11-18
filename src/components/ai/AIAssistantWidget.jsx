@@ -21,7 +21,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
-import { formatCurrency } from '../../lib/utils';
+import { formatCurrency, formatProductPrice } from '../../lib/utils';
 import { aiService } from '../../services/aiService';
 
 export default function AIAssistantWidget() {
@@ -422,8 +422,8 @@ export default function AIAssistantWidget() {
                                 className="p-2.5 rounded-xl bg-white border border-amber-200/60 flex flex-col justify-between"
                               >
                                 <div>
-                                  {/* SOURCE IDENTIFICATION BADGE */}
-                                  <div className="mb-1.5">
+                                  {/* SOURCE IDENTIFICATION & STATUS BADGE */}
+                                  <div className="flex flex-wrap items-center gap-1 mb-1.5">
                                     <span
                                       className={`inline-block text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
                                         isExternal
@@ -433,24 +433,47 @@ export default function AIAssistantWidget() {
                                     >
                                       {sourceLabel}
                                     </span>
+                                    <span
+                                      className={`inline-block text-[8.5px] font-bold px-1.5 py-0.5 rounded-full border ${
+                                        !isExternal
+                                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                          : (item.extractionStatus === 'success' && !item.isPartial)
+                                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                          : (item.extractionStatus === 'partial' || item.isPartial)
+                                          ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                          : 'bg-rose-50 text-rose-800 border-rose-200'
+                                      }`}
+                                    >
+                                      {!isExternal
+                                        ? 'Catalogue Item'
+                                        : (item.extractionStatus === 'success' && !item.isPartial)
+                                        ? 'Successfully extracted'
+                                        : (item.extractionStatus === 'partial' || item.isPartial)
+                                        ? 'Partially extracted'
+                                        : 'Extraction failed'}
+                                    </span>
                                   </div>
 
                                   <h6 className="font-serif font-semibold text-xs text-brand-dark line-clamp-2" title={item.name}>
                                     {item.name}
                                   </h6>
                                   <p className="text-xs font-bold text-amber-800 my-1">
-                                    {item.price ? formatCurrency(item.price) : 'Price unverified'}
+                                    {formatProductPrice(item.price)}
                                   </p>
 
-                                  {item.highlights && item.highlights.length > 0 && (
+                                  {item.highlights && item.highlights.length > 0 ? (
                                     <ul className="text-[10px] text-stone-600 space-y-1 mb-2">
                                       {item.highlights.slice(0, 3).map((h, i) => (
                                         <li key={i} className="flex items-center gap-1">
-                                          <span className="w-1 h-1 rounded-full bg-amber-500"></span>
+                                          <span className="w-1 h-1 rounded-full bg-amber-500 shrink-0"></span>
                                           <span className="line-clamp-1">{h}</span>
                                         </li>
                                       ))}
                                     </ul>
+                                  ) : (
+                                    <div className="text-[9.5px] text-stone-400 italic mb-2">
+                                      Specifications unavailable
+                                    </div>
                                   )}
                                 </div>
 
@@ -464,15 +487,18 @@ export default function AIAssistantWidget() {
 
                                   {/* Store link or product link */}
                                   {isExternal && item.sourceUrl && (
-                                    <a
-                                      href={item.sourceUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1 text-[10px] text-blue-700 hover:text-blue-900 font-semibold"
-                                    >
-                                      <span>View on {item.sourceWebsite || 'External Store'}</span>
-                                      <ExternalLink className="w-2.5 h-2.5" />
-                                    </a>
+                                    <div className="pt-1.5 border-t border-stone-100">
+                                      <a
+                                        href={item.sourceUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-[9.5px] text-blue-700 hover:text-blue-900 hover:underline max-w-full truncate"
+                                        title={item.sourceUrl}
+                                      >
+                                        <span className="truncate">Source: {item.sourceUrl}</span>
+                                        <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                                      </a>
+                                    </div>
                                   )}
                                   {!isExternal && (
                                     <Link

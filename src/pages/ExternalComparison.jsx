@@ -23,7 +23,7 @@ import {
   Package
 } from 'lucide-react';
 import { externalCompareService, SAMPLE_PRESETS } from '../services/externalCompareService';
-import { formatCurrency } from '../lib/utils';
+import { formatCurrency, formatProductPrice } from '../lib/utils';
 import { PRODUCTS } from '../data/mockProducts';
 import Badge from '../components/common/Badge';
 
@@ -223,6 +223,9 @@ export default function ExternalComparison() {
 
     const priceNum = manualForm.price ? parseFloat(manualForm.price.replace(/[^\d.]/g, '')) : null;
 
+    const hasSpecs = Object.keys(parsedSpecs).length > 0;
+    const isPartial = !manualForm.price || !hasSpecs;
+
     const updatedData = {
       id: items[editingItemIndex].id,
       name: manualForm.name.trim(),
@@ -236,7 +239,9 @@ export default function ExternalComparison() {
       sourceUrl: manualForm.sourceUrl || items[editingItemIndex].url,
       retrievedAt: new Date().toISOString(),
       isManual: true,
-      isPartial: !manualForm.price || Object.keys(parsedSpecs).length === 0,
+      isPartial,
+      hasSpecifications: hasSpecs,
+      extractionStatus: isPartial ? 'partial' : 'success',
       specifications: parsedSpecs,
     };
 
@@ -504,6 +509,31 @@ export default function ExternalComparison() {
                         {item.data.sourceTag}
                       </span>
                     )}
+                    {/* Status Badge */}
+                    {(item.status === 'blocked' || item.status === 'error') && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-rose-50 text-rose-800 border-rose-200">
+                        Extraction failed
+                      </span>
+                    )}
+                    {item.status === 'extracted' && item.data && (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                        item.sourceType === 'internal' || item.data.sourceType === 'internal'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : (item.data.extractionStatus === 'success' && !item.data.isPartial)
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : (item.data.extractionStatus === 'partial' || item.data.isPartial)
+                          ? 'bg-amber-50 text-amber-800 border-amber-200'
+                          : 'bg-rose-50 text-rose-800 border-rose-200'
+                      }`}>
+                        {item.sourceType === 'internal' || item.data.sourceType === 'internal'
+                          ? 'ShopSmart Catalogue'
+                          : (item.data.extractionStatus === 'success' && !item.data.isPartial)
+                          ? 'Successfully extracted'
+                          : (item.data.extractionStatus === 'partial' || item.data.isPartial)
+                          ? 'Partially extracted'
+                          : 'Extraction failed'}
+                      </span>
+                    )}
                   </div>
                   {items.length > 2 && (
                     <button
@@ -652,10 +682,31 @@ export default function ExternalComparison() {
                         </div>
                         <div className="flex items-center gap-2 mt-1">
                           <span className="font-bold text-xs text-amber-800">
-                            {item.data.price ? formatCurrency(item.data.price) : 'Price unverified'}
+                            {formatProductPrice(item.data.price)}
                           </span>
                           <span className="text-[10px] text-brand-muted">
-                            ({Object.keys(item.data.specifications || {}).length} verified specs)
+                            {(!item.data.specifications || Object.keys(item.data.specifications).length === 0)
+                              ? 'Specifications unavailable'
+                              : `(${Object.keys(item.data.specifications).length} verified specs)`}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                            item.sourceType === 'internal' || item.data.sourceType === 'internal'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                              : (item.data.extractionStatus === 'success' && !item.data.isPartial)
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                              : (item.data.extractionStatus === 'partial' || item.data.isPartial)
+                              ? 'bg-amber-50 text-amber-800 border-amber-200'
+                              : 'bg-rose-50 text-rose-800 border-rose-200'
+                          }`}>
+                            {item.sourceType === 'internal' || item.data.sourceType === 'internal'
+                              ? 'Catalogue Item'
+                              : (item.data.extractionStatus === 'success' && !item.data.isPartial)
+                              ? 'Successfully extracted'
+                              : (item.data.extractionStatus === 'partial' || item.data.isPartial)
+                              ? 'Partially extracted'
+                              : 'Extraction failed'}
                           </span>
                         </div>
                       </div>
@@ -786,15 +837,36 @@ export default function ExternalComparison() {
                         </div>
 
                         <div>
-                          <span
-                            className={`inline-block text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border mb-1.5 ${
-                              p.sourceType === 'internal'
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                : 'bg-blue-50 text-blue-800 border-blue-200'
-                            }`}
-                          >
-                            {p.sourceTag || (p.sourceType === 'internal' ? 'ShopSmart AI Catalogue – Internal Product' : `${p.sourceWebsite || 'External'} – External Product`)}
-                          </span>
+                          <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                            <span
+                              className={`inline-block text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
+                                p.sourceType === 'internal'
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                  : 'bg-blue-50 text-blue-800 border-blue-200'
+                              }`}
+                            >
+                              {p.sourceTag || (p.sourceType === 'internal' ? 'ShopSmart AI Catalogue – Internal Product' : `${p.sourceWebsite || 'External'} – External Product`)}
+                            </span>
+                            <span
+                              className={`inline-block text-[9.5px] font-bold px-2 py-0.5 rounded-full border ${
+                                p.sourceType === 'internal'
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                  : (p.extractionStatus === 'success' && !p.isPartial)
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                  : (p.extractionStatus === 'partial' || p.isPartial)
+                                  ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                  : 'bg-rose-50 text-rose-800 border-rose-200'
+                              }`}
+                            >
+                              {p.sourceType === 'internal'
+                                ? 'Verified In Catalogue'
+                                : (p.extractionStatus === 'success' && !p.isPartial)
+                                ? 'Successfully extracted'
+                                : (p.extractionStatus === 'partial' || p.isPartial)
+                                ? 'Partially extracted'
+                                : 'Extraction failed'}
+                            </span>
+                          </div>
                           <h3 className="font-bold text-xs text-brand-dark line-clamp-2 mt-0.5" title={p.name}>
                             {p.name}
                           </h3>
@@ -802,36 +874,59 @@ export default function ExternalComparison() {
 
                         <div className="pt-1">
                           <span className="text-xl font-bold font-sans text-brand-dark">
-                            {p.price ? formatCurrency(p.price) : 'Price unverified'}
+                            {formatProductPrice(p.price)}
                           </span>
+                          {(!p.specifications || Object.keys(p.specifications).length === 0) && (
+                            <div className="text-[10px] text-stone-400 italic mt-0.5">
+                              Specifications unavailable
+                            </div>
+                          )}
                         </div>
                       </div>
 
-                      <div className="pt-4 border-t border-stone-100 mt-4 flex items-center justify-between text-[11px]">
-                        <span className="text-stone-400">
-                          {p.sourceType === 'internal' ? 'ShopSmart Catalogue' : p.isManual ? 'Manual Entry' : 'Extracted'}
-                        </span>
+                      <div className="pt-3 border-t border-stone-100 mt-4 space-y-2">
+                        {/* Requirement 11: Show the source URL under each comparison card */}
                         {p.sourceUrl && (
-                          p.sourceType === 'internal' ? (
-                            <Link
-                              to={p.sourceUrl}
-                              className="font-semibold text-emerald-800 hover:text-emerald-900 flex items-center gap-1"
-                            >
-                              <span>View in ShopSmart</span>
-                              <ArrowRight className="w-3 h-3" />
-                            </Link>
-                          ) : (
+                          <div className="text-[11px] text-stone-600 truncate">
                             <a
                               href={p.sourceUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="font-semibold text-blue-800 hover:text-blue-900 flex items-center gap-1"
+                              className="text-blue-700 hover:text-blue-900 hover:underline flex items-center gap-1 truncate"
+                              title={p.sourceUrl}
                             >
-                              <span>View on Store</span>
-                              <ExternalLink className="w-3 h-3" />
+                              <span className="truncate">Source: {p.sourceUrl}</span>
+                              <ExternalLink className="w-3 h-3 shrink-0" />
                             </a>
-                          )
+                          </div>
                         )}
+
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-stone-400">
+                            {p.sourceType === 'internal' ? 'ShopSmart Catalogue' : p.isManual ? 'Manual Entry' : 'Extracted'}
+                          </span>
+                          {p.sourceUrl && (
+                            p.sourceType === 'internal' ? (
+                              <Link
+                                to={p.sourceUrl}
+                                className="font-semibold text-emerald-800 hover:text-emerald-900 flex items-center gap-1"
+                              >
+                                <span>View in ShopSmart</span>
+                                <ArrowRight className="w-3 h-3" />
+                              </Link>
+                            ) : (
+                              <a
+                                href={p.sourceUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-semibold text-blue-800 hover:text-blue-900 flex items-center gap-1"
+                              >
+                                <span>Visit Store</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            )
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -919,14 +1014,14 @@ export default function ExternalComparison() {
                           {items
                             .filter((i) => i.data && i.data.name)
                             .map((i) => {
-                              const val = row.productValues?.[i.id] || 'Not specified';
-                              const isUnverified = val.toLowerCase().includes('not') || val.toLowerCase().includes('unverified');
+                              const val = row.productValues?.[i.id] || 'Specifications unavailable';
+                              const isUnverified = !val || val.toLowerCase().includes('not') || val.toLowerCase().includes('unverified') || val.toLowerCase().includes('unavailable');
                               return (
                                 <td key={i.id} className="py-3.5 px-4 text-brand-dark">
                                   {isUnverified ? (
                                     <span className="inline-flex items-center gap-1 text-stone-400 text-[11px] italic">
-                                      <HelpCircle className="w-3 h-3 text-stone-400" />
-                                      <span>Unverified / Not provided</span>
+                                      <HelpCircle className="w-3 h-3 text-stone-400 shrink-0" />
+                                      <span>Specifications unavailable</span>
                                     </span>
                                   ) : (
                                     <span>{val}</span>

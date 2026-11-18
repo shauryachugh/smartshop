@@ -18,11 +18,24 @@ export const inrFormatter = new Intl.NumberFormat('en-IN', {
  * @param {number} amount
  * @returns {string} e.g. "₹1,299" or "₹1,25,000"
  */
-export function formatCurrency(amount) {
-  if (typeof amount !== 'number' || isNaN(amount)) {
-    return '₹0';
+export function formatCurrency(amount, fallback = '₹0') {
+  if (typeof amount !== 'number' || isNaN(amount) || amount === null || amount === undefined) {
+    return fallback;
   }
   return inrFormatter.format(amount);
+}
+
+/**
+ * Format product price, strictly returning 'Price unavailable' if missing or non-positive
+ * Never converts missing prices to ₹0.
+ * @param {number|null|undefined} price
+ * @returns {string} e.g. "₹19,999" or "Price unavailable"
+ */
+export function formatProductPrice(price) {
+  if (price === null || price === undefined || typeof price !== 'number' || isNaN(price) || price <= 0) {
+    return 'Price unavailable';
+  }
+  return inrFormatter.format(price);
 }
 
 /**

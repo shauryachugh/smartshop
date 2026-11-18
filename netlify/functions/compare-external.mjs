@@ -52,8 +52,12 @@ export function generateSemanticComparison(products) {
   const prodA = products[0];
   const prodB = products[1];
 
-  const priceAStr = prodA.price ? `₹${Number(prodA.price).toLocaleString('en-IN')}` : 'Price unverified';
-  const priceBStr = prodB.price ? `₹${Number(prodB.price).toLocaleString('en-IN')}` : 'Price unverified';
+  const priceAStr = (prodA.price !== null && prodA.price !== undefined && !isNaN(prodA.price) && prodA.price > 0)
+    ? `₹${Number(prodA.price).toLocaleString('en-IN')}`
+    : 'Price unavailable';
+  const priceBStr = (prodB.price !== null && prodB.price !== undefined && !isNaN(prodB.price) && prodB.price > 0)
+    ? `₹${Number(prodB.price).toLocaleString('en-IN')}`
+    : 'Price unavailable';
 
   // Extract combined unique spec keys
   const allSpecKeys = Array.from(new Set([
@@ -62,17 +66,17 @@ export function generateSemanticComparison(products) {
   ])).slice(0, 8);
 
   const specRows = allSpecKeys.map((k) => {
-    const valA = prodA.specifications?.[k] || 'Not specified';
-    const valB = prodB.specifications?.[k] || 'Not specified';
+    const valA = prodA.specifications?.[k] || 'Specifications unavailable';
+    const valB = prodB.specifications?.[k] || 'Specifications unavailable';
     return {
       specName: k,
       productValues: {
         [prodA.id]: valA,
         [prodB.id]: valB,
       },
-      analysis: valA !== 'Not specified' && valB !== 'Not specified'
+      analysis: valA !== 'Specifications unavailable' && valB !== 'Specifications unavailable'
         ? `Direct comparison between ${prodA.name.slice(0, 20)} and ${prodB.name.slice(0, 20)}.`
-        : 'Specification not verified on one of the source pages.',
+        : 'Specification unavailable on one of the source pages.',
     };
   });
 
@@ -119,13 +123,13 @@ export function generateSemanticComparison(products) {
         sourceWebsite: p.sourceWebsite,
         sourceType: isInternal ? 'internal' : 'external',
         advantages: [
-          p.price ? `Priced at ₹${Number(p.price).toLocaleString('en-IN')}` : 'Verified market offering',
+          (p.price && p.price > 0) ? `Priced at ₹${Number(p.price).toLocaleString('en-IN')}` : 'Verified market offering',
           p.brand ? `Authentic hardware by ${p.brand}` : 'Standard consumer hardware',
           isInternal ? 'Available directly in ShopSmart AI verified catalogue with express dispatch' : `Available via ${p.sourceWebsite || 'e-commerce store'}`,
         ],
         disadvantages: [
           isInternal ? 'Stock subject to high local demand' : 'Prices subject to daily external seller fluctuations',
-          p.isPartial ? 'Some technical specifications were unverified on the source listing' : 'Warranty subject to platform seller terms',
+          p.isPartial ? 'Some technical specifications were unavailable on the source listing' : 'Warranty subject to platform seller terms',
         ],
         bestFor: isInternal
           ? `Customers seeking seamless in-house ordering with genuine warranty from ShopSmart AI.`
@@ -167,7 +171,7 @@ export async function runProductComparison(products) {
       id: p.id || `prod-${idx + 1}`,
       name: (p.name || `Product ${idx + 1}`).trim(),
       brand: (p.brand || 'Unspecified').trim(),
-      price: p.price ? Number(p.price) : null,
+      price: (p.price !== null && p.price !== undefined && !isNaN(p.price) && Number(p.price) > 0) ? Number(p.price) : null,
       image: p.image || '',
       sourceWebsite,
       sourceTag,
@@ -177,6 +181,7 @@ export async function runProductComparison(products) {
       retrievedAt: p.retrievedAt || new Date().toISOString(),
       isManual: Boolean(p.isManual),
       isPartial: Boolean(p.isPartial),
+      extractionStatus: p.extractionStatus || (isInternal ? 'success' : p.isPartial ? 'partial' : 'success'),
       missingFields: Array.isArray(p.missingFields) ? p.missingFields : [],
       description: (p.description || '').slice(0, 300),
       specifications: typeof p.specifications === 'object' && p.specifications ? p.specifications : {},
@@ -198,13 +203,13 @@ export async function runProductComparison(products) {
 
   // Format products overview for Gemini Prompt
   const productsSummary = sanitizedProducts.map((p) => {
-    const priceText = p.price ? `₹${p.price.toLocaleString('en-IN')}` : 'Price not provided / unverified';
+    const priceText = (p.price && p.price > 0) ? `₹${p.price.toLocaleString('en-IN')}` : 'Price unavailable';
     const specsText = Object.entries(p.specifications).length > 0
       ? Object.entries(p.specifications)
           .slice(0, 15)
           .map(([k, v]) => `  - ${k}: ${v}`)
           .join('\n')
-      : '  - No verified technical specifications extracted.';
+      : '  - Specifications unavailable.';
     return `[ID: ${p.id}] "${p.name}" (Brand: ${p.brand})\nSource: ${p.sourceTag} (${p.sourceUrl || 'N/A'})\nPrice: ${priceText}\nData Type: ${p.isManual ? 'Manually provided by customer' : p.sourceType === 'internal' ? 'Official ShopSmart AI Catalogue item' : 'Extracted from public listing'}\nSpecifications:\n${specsText}`;
   }).join('\n\n');
 
@@ -220,9 +225,10 @@ The comparison may involve:
 
 CURRENCY & FORMATTING RULES:
 1. Always format prices in Indian Rupees (₹) using the Indian numbering system (e.g. ₹19,999, ₹1,29,900).
-2. If a product's price was not provided, label it as "Price unverified" — NEVER invent or hallucinate a price.
-3. If any specification was not provided or is missing, explicitly label it as "Unverified / Not provided" — NEVER invent hardware specifications, AnTuTu scores, or battery sizes that were not in the source data.
+2. If a product's price was not provided, is null, or is 0, label it as "Price unavailable" — NEVER invent or hallucinate a price, and NEVER output ₹0 for missing prices.
+3. If any specification was not provided or is missing, explicitly label it as "Specifications unavailable" — NEVER invent hardware specifications, AnTuTu scores, or battery sizes that were not in the source data.
 4. Clearly identify the source of each product (e.g. Amazon India – External Product vs ShopSmart AI Catalogue – Internal Product).
+5. Never substitute internal catalogue product prices or names for external products.
 
 ANALYSIS REQUIREMENTS:
 1. Compare relevant specifications (e.g., Processor/SoC, RAM, Storage, Display, Camera, Battery/Charging, Build Quality for phones/laptops; Drivers, ANC, Battery, Codecs for audio).
