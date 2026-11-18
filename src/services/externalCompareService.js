@@ -239,7 +239,7 @@ export const externalCompareService = {
     } catch (err) {
       clearTimeout(timeoutId);
       if (err.name === 'AbortError') {
-        throw new Error('Gemini comparison timed out. Please try again.');
+        throw new Error('ShopSmart AI comparison timed out. Please try again.');
       }
       throw err;
     }

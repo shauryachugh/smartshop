@@ -431,7 +431,7 @@ export default function AdminDashboard() {
                 <Sparkles className="w-4 h-4 fill-amber-300" />
               </div>
               <h3 className="font-serif text-lg font-semibold text-white">
-                Gemini Business Intelligence Diagnostics
+                ShopSmart AI Business Intelligence Diagnostics
               </h3>
             </div>
 

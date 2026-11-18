@@ -1406,3 +1406,86 @@ ON CONFLICT (id) DO UPDATE SET
     is_trending = EXCLUDED.is_trending,
     tags = EXCLUDED.tags,
     ai_verdict = EXCLUDED.ai_verdict;
+
+
+-- ==============================================================================
+-- SAMPLE INITIAL ORDERS & ORDER ITEMS FOR ADMIN DASHBOARD
+-- ==============================================================================
+INSERT INTO public.orders (
+    id, customer_name, customer_email, customer_phone, total_amount, order_status, shipping_address, payment_method, created_at
+) VALUES
+(
+    'b0000001-0000-0000-0000-000000000001',
+    'Vikramaditya Rathore',
+    'vikram.rathore@example.in',
+    '+91 98765 43210',
+    19999.00,
+    'processing',
+    '{"address":"Villa 14, Palm Meadows, Whitefield","city":"Bengaluru","state":"Karnataka","pincode":"560066"}'::jsonb,
+    'SIMULATED_DEMO_UPI',
+    NOW() - INTERVAL '4 hours'
+),
+(
+    'b0000001-0000-0000-0000-000000000002',
+    'Ananya Deshmukh',
+    'ananya.d@example.in',
+    '+91 98220 11223',
+    3298.00,
+    'delivered',
+    '{"address":"Flat 402, Sea Green Apts, Worli","city":"Mumbai","state":"Maharashtra","pincode":"400018"}'::jsonb,
+    'SIMULATED_DEMO_UPI',
+    NOW() - INTERVAL '28 hours'
+),
+(
+    'b0000001-0000-0000-0000-000000000003',
+    'Dr. Kabir Sen',
+    'dr.kabir@example.in',
+    '+91 94331 55667',
+    125000.00,
+    'shipped',
+    '{"address":"B-74, Salt Lake Sector 1","city":"Kolkata","state":"West Bengal","pincode":"700064"}'::jsonb,
+    'SIMULATED_DEMO_UPI',
+    NOW() - INTERVAL '52 hours'
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.order_items (
+    id, order_id, product_id, product_name, quantity, unit_price, subtotal
+) VALUES
+(
+    'c0000001-0000-0000-0000-000000000001',
+    'b0000001-0000-0000-0000-000000000001',
+    'a0000001-0000-0000-0000-000000000001',
+    'OnePlus Nord CE 4 5G (8GB RAM, 128GB Storage, Celadon Marble)',
+    1,
+    19999.00,
+    19999.00
+),
+(
+    'c0000001-0000-0000-0000-000000000002',
+    'b0000001-0000-0000-0000-000000000002',
+    'a0000001-0000-0000-0000-000000000018',
+    'EchoPulse True Wireless Earbuds with ANC',
+    1,
+    1899.00,
+    1899.00
+),
+(
+    'c0000001-0000-0000-0000-000000000003',
+    'b0000001-0000-0000-0000-000000000002',
+    'a0000001-0000-0000-0000-000000000059',
+    'WaveX 3-in-1 Ceramic Coating (500ml)',
+    1,
+    1299.00,
+    1299.00
+),
+(
+    'c0000001-0000-0000-0000-000000000004',
+    'b0000001-0000-0000-0000-000000000003',
+    'a0000001-0000-0000-0000-000000000009',
+    'TitanBook Pro M2 Creator Laptop (16GB/1TB)',
+    1,
+    125000.00,
+    125000.00
+)
+ON CONFLICT (id) DO NOTHING;

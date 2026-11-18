@@ -48,7 +48,7 @@ export const PLANNED_MODULES = [
     id: 'smart-recommendations',
     title: 'Curated Recommendations',
     description: 'Personalized product suggestions computed using advanced semantic matching and dynamic customer preference profiling, strictly within specified INR budgets.',
-    badge: 'Gemini Engine',
+    badge: 'ShopSmart AI Engine',
     status: 'Planned: Phase 3',
   },
   {

@@ -33,7 +33,7 @@ export default function About() {
     {
       icon: Award,
       title: 'College Capstone Innovation',
-      description: 'Built as an individual capstone project demonstrating modern full-stack web engineering, React 18, Vite bundling, and upcoming Google Gemini AI integration.',
+      description: 'Built as an individual capstone project demonstrating modern full-stack web engineering, React 18, Vite bundling, and state-of-the-art ShopSmart AI shopping intelligence.',
     },
   ];
 
@@ -101,7 +101,7 @@ export default function About() {
             </h3>
           </div>
           <p className="text-xs sm:text-sm text-stone-300 leading-relaxed">
-            Developed by <strong>Shaurya</strong> as an individual college capstone project. Engineered with modern enterprise software patterns: modular React architecture, Tailwind CSS design system tokens, localStorage state synchronization, Netlify serverless deployment, and upcoming Google Gemini AI integration.
+            Developed by <strong>Shaurya</strong> as an individual college capstone project. Engineered with modern enterprise software patterns: modular React architecture, Tailwind CSS design system tokens, localStorage state synchronization, Netlify serverless deployment, and integrated ShopSmart AI shopping intelligence.
           </p>
         </div>
 

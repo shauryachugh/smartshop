@@ -42,7 +42,7 @@ export default function AIAssistantWidget() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [addedIds, setAddedIds] = useState(new Set());
   const [errorMessage, setErrorMessage] = useState(null);
-  const [activeModel, setActiveModel] = useState('Google Gemini');
+  const [activeModel, setActiveModel] = useState('ShopSmart AI');
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -124,19 +124,7 @@ export default function AIAssistantWidget() {
       });
 
       if (response.modelUsed) {
-        if (response.modelUsed.includes('3.5')) {
-          setActiveModel('Gemini 3.5 Flash');
-        } else if (response.modelUsed.includes('3.8')) {
-          setActiveModel('Gemini 3.8 Flash');
-        } else if (response.modelUsed.includes('3.7')) {
-          setActiveModel('Gemini 3.7 Flash');
-        } else if (response.modelUsed.includes('2.5')) {
-          setActiveModel('Gemini 2.5 Flash');
-        } else if (response.modelUsed.includes('gemini')) {
-          setActiveModel('Google Gemini');
-        } else {
-          setActiveModel('Smart Concierge');
-        }
+        setActiveModel('ShopSmart AI');
       }
 
       // 4. Create and append Assistant message with verified products & comparison
@@ -180,7 +168,7 @@ export default function AIAssistantWidget() {
               <span>Ask ShopSmart AI</span>
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
             </span>
-            <span className="text-[10px] text-stone-400">Gemini-Powered Concierge (INR)</span>
+            <span className="text-[10px] text-stone-400">Powered by ShopSmart AI (INR)</span>
           </div>
         </button>
       )}
@@ -203,7 +191,7 @@ export default function AIAssistantWidget() {
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="font-serif text-sm font-semibold text-white">
-                    ShopSmart Concierge
+                    ShopSmart AI Assistant
                   </h3>
                   <span className="text-[9px] font-mono uppercase bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/30 flex items-center gap-1">
                     <Zap className="w-2.5 h-2.5 fill-amber-300" />
@@ -211,7 +199,7 @@ export default function AIAssistantWidget() {
                   </span>
                 </div>
                 <p className="text-[10px] text-stone-400">
-                  Verified Indian Catalogue & INR (₹) Recommendations
+                  Verified Indian Catalogue & Smart AI Recommendations
                 </p>
               </div>
             </div>
@@ -281,7 +269,7 @@ export default function AIAssistantWidget() {
                     <div className="space-y-2.5 pt-1">
                       <div className="text-[10px] uppercase font-bold tracking-wider text-amber-800/80 flex items-center gap-1.5">
                         <Tag className="w-3 h-3 text-amber-700" />
-                        <span>Verified In-Stock Recommendations:</span>
+                        <span>ShopSmart AI Recommendations:</span>
                       </div>
 
                       <div className="grid grid-cols-1 gap-2">
@@ -518,7 +506,7 @@ export default function AIAssistantWidget() {
                         {/* AI Verdict */}
                         {msg.comparison.verdict && (
                           <div className="p-2 rounded-xl bg-white/90 border border-amber-200 text-[11px] text-stone-700">
-                            <span className="font-semibold text-amber-900">AI Concierge Verdict: </span>
+                            <span className="font-semibold text-amber-900">ShopSmart AI Verdict: </span>
                             {msg.comparison.verdict}
                           </div>
                         )}
@@ -550,7 +538,7 @@ export default function AIAssistantWidget() {
                   <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce [animation-delay:0.2s]"></span>
                   <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce [animation-delay:0.4s]"></span>
                   <span className="text-[11px] text-stone-600 font-medium ml-1">
-                    Analyzing Indian catalog & specs...
+                    ShopSmart AI is analyzing catalogue & specifications...
                   </span>
                 </div>
               </div>
@@ -610,6 +598,13 @@ export default function AIAssistantWidget() {
               <Send className="w-4 h-4 text-amber-400" />
             </button>
           </form>
+
+          {/* Brand Tagline Footer */}
+          <div className="py-1.5 px-4 bg-stone-50 border-t border-stone-100 text-center shrink-0">
+            <span className="text-[9.5px] text-stone-400 font-medium tracking-wide">
+              Powered by ShopSmart AI · Strict INR (₹) Recommendations
+            </span>
+          </div>
         </div>
       )}
     </>

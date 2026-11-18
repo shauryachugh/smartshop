@@ -385,8 +385,8 @@ export default function ExternalComparison() {
         return;
       }
 
-      // Step 2: Call Gemini External Comparison
-      setProcessingStep('Sending structured specs to Google Gemini AI for side-by-side analysis...');
+      // Step 2: Call External Comparison
+      setProcessingStep('Sending structured specs to ShopSmart AI for side-by-side analysis...');
       const comp = await externalCompareService.compareProducts(extractedProducts);
 
       if (!comp.success) {
@@ -425,7 +425,7 @@ export default function ExternalComparison() {
             <span>AI-Powered External Product Comparison</span>
           </div>
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-serif font-bold text-brand-dark tracking-tight">
-            Compare Any Products with Gemini AI
+            Compare Any Products with ShopSmart AI
           </h1>
           <p className="max-w-2xl mx-auto text-sm sm:text-base text-brand-muted leading-relaxed">
             Paste product links from <strong>Amazon India</strong>, <strong>Flipkart</strong>, <strong>Croma</strong>, <strong>Reliance Digital</strong>, or any e-commerce site. Our AI inspects specifications, balances pros and cons, and reveals the true value-for-money winner in <strong>Indian Rupees (₹)</strong>.
@@ -774,7 +774,7 @@ export default function ExternalComparison() {
             ) : (
               <>
                 <Sparkles className="w-4 h-4 text-amber-400" />
-                <span>Compare Products with Gemini AI</span>
+                <span>Compare Products with ShopSmart AI</span>
               </>
             )}
           </button>
@@ -940,7 +940,7 @@ export default function ExternalComparison() {
                   <Sparkles className="w-4 h-4" />
                 </div>
                 <h3 className="text-lg font-serif font-bold text-brand-dark">
-                  Gemini AI Executive Evaluation
+                  ShopSmart AI Executive Evaluation
                 </h3>
               </div>
               <div className="prose prose-sm max-w-none text-brand-charcoal text-xs sm:text-sm leading-relaxed whitespace-pre-line">

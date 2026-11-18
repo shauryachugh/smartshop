@@ -1,0 +1,1869 @@
+-- ==============================================================================
+-- SHOPSMART AI — COMPLETE SUPABASE DATABASE SCHEMA MIGRATION
+-- ==============================================================================
+-- This script sets up all required tables, constraints, indexes, Row Level
+-- Security (RLS) policies, and authentication triggers for ShopSmart AI.
+--
+-- Instructions: Run this script in your Supabase Project's SQL Editor:
+-- https://supabase.com/dashboard/project/unectsmgytpitjaxdgru/sql
+-- ==============================================================================
+
+-- 1. Enable Cryptographic & UUID Extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- ==============================================================================
+-- TABLE 1: PRODUCTS
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.products (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    description TEXT,
+    price NUMERIC(12, 2) NOT NULL CHECK (price >= 0),
+    original_price NUMERIC(12, 2) CHECK (original_price IS NULL OR original_price >= price),
+    discount_percent INTEGER DEFAULT 0 CHECK (discount_percent >= 0 AND discount_percent <= 100),
+    image_url TEXT NOT NULL,
+    images JSONB DEFAULT '[]'::jsonb,
+    rating NUMERIC(3, 2) DEFAULT 4.5 CHECK (rating >= 0 AND rating <= 5),
+    reviews_count INTEGER DEFAULT 0 CHECK (reviews_count >= 0),
+    specifications JSONB DEFAULT '{}'::jsonb,
+    stock_quantity INTEGER DEFAULT 25 CHECK (stock_quantity >= 0),
+    availability TEXT DEFAULT 'In Stock',
+    is_active BOOLEAN DEFAULT true,
+    is_featured BOOLEAN DEFAULT false,
+    is_trending BOOLEAN DEFAULT false,
+    tags TEXT[] DEFAULT ARRAY[]::TEXT[],
+    ai_verdict TEXT,
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- Indexes for fast searching, filtering, and sorting
+CREATE INDEX IF NOT EXISTS idx_products_category ON public.products (category);
+CREATE INDEX IF NOT EXISTS idx_products_price ON public.products (price);
+CREATE INDEX IF NOT EXISTS idx_products_is_active ON public.products (is_active);
+CREATE INDEX IF NOT EXISTS idx_products_featured ON public.products (is_featured) WHERE is_featured = true;
+CREATE INDEX IF NOT EXISTS idx_products_trending ON public.products (is_trending) WHERE is_trending = true;
+CREATE INDEX IF NOT EXISTS idx_products_created_at ON public.products (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_products_search ON public.products USING gin (to_tsvector('english', name || ' ' || COALESCE(description, '')));
+
+
+-- ==============================================================================
+-- TABLE 2: PROFILES (Linked to Supabase Auth auth.users)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.profiles (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    full_name TEXT,
+    email TEXT,
+    phone TEXT,
+    avatar_url TEXT,
+    role TEXT DEFAULT 'customer' CHECK (role IN ('customer', 'admin', 'manager')),
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_profiles_role ON public.profiles (role);
+
+
+-- ==============================================================================
+-- TABLE 3: WISHLISTS
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.wishlists (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    CONSTRAINT unique_user_product_wishlist UNIQUE (user_id, product_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_wishlists_user_id ON public.wishlists (user_id);
+CREATE INDEX IF NOT EXISTS idx_wishlists_product_id ON public.wishlists (product_id);
+
+
+-- ==============================================================================
+-- TABLE 4: ENQUIRIES (Customer Support & Contact Form)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.enquiries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    phone TEXT,
+    subject TEXT NOT NULL,
+    message TEXT NOT NULL,
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'resolved', 'closed')),
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_enquiries_user_id ON public.enquiries (user_id);
+CREATE INDEX IF NOT EXISTS idx_enquiries_status ON public.enquiries (status);
+CREATE INDEX IF NOT EXISTS idx_enquiries_created_at ON public.enquiries (created_at DESC);
+
+
+-- ==============================================================================
+-- TABLE 5: ORDERS (E-Commerce Checkout)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    customer_name TEXT NOT NULL,
+    customer_email TEXT NOT NULL,
+    customer_phone TEXT,
+    shipping_address JSONB NOT NULL DEFAULT '{}'::jsonb,
+    total_amount NUMERIC(12, 2) NOT NULL CHECK (total_amount >= 0),
+    order_status TEXT DEFAULT 'confirmed' CHECK (lower(order_status) IN ('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled')),
+    payment_method TEXT DEFAULT 'SIMULATED_DEMO_UPI',
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_orders_user_id ON public.orders (user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON public.orders (order_status);
+CREATE INDEX IF NOT EXISTS idx_orders_created_at ON public.orders (created_at DESC);
+
+
+-- ==============================================================================
+-- TABLE 6: ORDER_ITEMS
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.order_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+    product_id UUID REFERENCES public.products(id) ON DELETE SET NULL,
+    product_name TEXT NOT NULL,
+    quantity INTEGER NOT NULL CHECK (quantity > 0),
+    unit_price NUMERIC(12, 2) NOT NULL CHECK (unit_price >= 0),
+    subtotal NUMERIC(12, 2) NOT NULL CHECK (subtotal >= 0),
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON public.order_items (order_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_product_id ON public.order_items (product_id);
+
+
+-- ==============================================================================
+-- HELPER FUNCTIONS & TRIGGERS
+-- ==============================================================================
+
+-- 1. Helper function: Check if current session user is an admin
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+    -- Check if authenticated user has admin role in public.profiles
+    IF EXISTS (
+        SELECT 1 FROM public.profiles
+        WHERE id = auth.uid() AND role IN ('admin', 'manager')
+    ) THEN
+        RETURN true;
+    END IF;
+
+    -- Check user metadata in JWT token
+    IF (auth.jwt() -> 'user_metadata' ->> 'role') IN ('admin', 'manager') THEN
+        RETURN true;
+    END IF;
+
+    -- Allow service_role key or postgres superuser
+    IF auth.jwt() ->> 'role' = 'service_role' OR current_user = 'postgres' THEN
+        RETURN true;
+    END IF;
+
+    RETURN false;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
+
+-- 2. Helper function: Check if an order exists (bypasses RLS to allow guest checkout items insertion)
+CREATE OR REPLACE FUNCTION public.order_exists(p_order_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN EXISTS (SELECT 1 FROM public.orders WHERE id = p_order_id);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
+
+-- 3. Automation Trigger: Auto-create profile on user signup
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.profiles (id, full_name, email, phone, avatar_url, role)
+    VALUES (
+        NEW.id,
+        COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.email),
+        NEW.email,
+        NEW.raw_user_meta_data->>'phone',
+        NEW.raw_user_meta_data->>'avatar_url',
+        COALESCE(NEW.raw_user_meta_data->>'role', 'customer')
+    )
+    ON CONFLICT (id) DO UPDATE SET
+        full_name = EXCLUDED.full_name,
+        email = EXCLUDED.email,
+        updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT OR UPDATE ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- 4. Security Trigger: Prevent regular users from granting themselves admin roles
+CREATE OR REPLACE FUNCTION public.prevent_role_escalation()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.role IS DISTINCT FROM OLD.role THEN
+        IF NOT (
+            public.is_admin()
+            OR auth.jwt() ->> 'role' = 'service_role'
+            OR current_user = 'postgres'
+        ) THEN
+            RAISE EXCEPTION 'Unauthorized: Standard users cannot alter administrative privileges.';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trg_prevent_role_escalation ON public.profiles;
+CREATE TRIGGER trg_prevent_role_escalation
+    BEFORE UPDATE ON public.profiles
+    FOR EACH ROW EXECUTE FUNCTION public.prevent_role_escalation();
+
+-- 5. Helper Function: Grant admin status to any email easily from SQL Editor
+CREATE OR REPLACE FUNCTION public.make_admin(user_email TEXT)
+RETURNS TEXT AS $$
+DECLARE
+    target_id UUID;
+BEGIN
+    SELECT id INTO target_id FROM auth.users WHERE email = user_email LIMIT 1;
+    IF target_id IS NULL THEN
+        RETURN 'User not found in auth.users with email: ' || user_email;
+    END IF;
+    UPDATE public.profiles SET role = 'admin', updated_at = NOW() WHERE id = target_id;
+    RETURN 'Success: User ' || user_email || ' is now an administrator.';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- ==============================================================================
+-- DATABASE SECURITY: ENABLE ROW LEVEL SECURITY (RLS)
+-- ==============================================================================
+ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.wishlists ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.enquiries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
+
+
+-- ------------------------------------------------------------------------------
+-- POLICIES: PRODUCTS
+-- ------------------------------------------------------------------------------
+DROP POLICY IF EXISTS "Public users can view active products" ON public.products;
+CREATE POLICY "Public users can view active products"
+    ON public.products FOR SELECT
+    USING (is_active = true OR public.is_admin());
+
+DROP POLICY IF EXISTS "Admins can manage products" ON public.products;
+CREATE POLICY "Admins can manage products"
+    ON public.products FOR ALL
+    USING (public.is_admin())
+    WITH CHECK (public.is_admin());
+
+
+-- ------------------------------------------------------------------------------
+-- POLICIES: PROFILES
+-- ------------------------------------------------------------------------------
+DROP POLICY IF EXISTS "Users can read own profile" ON public.profiles;
+CREATE POLICY "Users can read own profile"
+    ON public.profiles FOR SELECT
+    USING (auth.uid() = id OR public.is_admin());
+
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
+CREATE POLICY "Users can update own profile"
+    ON public.profiles FOR UPDATE
+    USING (auth.uid() = id OR public.is_admin());
+
+DROP POLICY IF EXISTS "Profiles insert policy" ON public.profiles;
+CREATE POLICY "Profiles insert policy"
+    ON public.profiles FOR INSERT
+    WITH CHECK (auth.uid() = id OR public.is_admin());
+
+
+-- ------------------------------------------------------------------------------
+-- POLICIES: WISHLISTS
+-- ------------------------------------------------------------------------------
+DROP POLICY IF EXISTS "Users can view own wishlist" ON public.wishlists;
+CREATE POLICY "Users can view own wishlist"
+    ON public.wishlists FOR SELECT
+    USING (auth.uid() = user_id OR public.is_admin());
+
+DROP POLICY IF EXISTS "Users can add to own wishlist" ON public.wishlists;
+CREATE POLICY "Users can add to own wishlist"
+    ON public.wishlists FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can delete from own wishlist" ON public.wishlists;
+CREATE POLICY "Users can delete from own wishlist"
+    ON public.wishlists FOR DELETE
+    USING (auth.uid() = user_id);
+
+
+-- ------------------------------------------------------------------------------
+-- POLICIES: ENQUIRIES
+-- ------------------------------------------------------------------------------
+DROP POLICY IF EXISTS "Anyone can submit enquiry" ON public.enquiries;
+CREATE POLICY "Anyone can submit enquiry"
+    ON public.enquiries FOR INSERT
+    WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Users can view own enquiries" ON public.enquiries;
+CREATE POLICY "Users can view own enquiries"
+    ON public.enquiries FOR SELECT
+    USING (public.is_admin() OR auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Admins can update enquiries" ON public.enquiries;
+CREATE POLICY "Admins can update enquiries"
+    ON public.enquiries FOR UPDATE
+    USING (public.is_admin())
+    WITH CHECK (public.is_admin());
+
+
+-- ------------------------------------------------------------------------------
+-- POLICIES: ORDERS
+-- ------------------------------------------------------------------------------
+DROP POLICY IF EXISTS "Users and admins can view orders" ON public.orders;
+CREATE POLICY "Users and admins can view orders"
+    ON public.orders FOR SELECT
+    USING (public.is_admin() OR auth.uid() = user_id OR user_id IS NULL);
+
+DROP POLICY IF EXISTS "Users can insert simulated orders" ON public.orders;
+CREATE POLICY "Users can insert simulated orders"
+    ON public.orders FOR INSERT
+    WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Admins can update order status" ON public.orders;
+CREATE POLICY "Admins can update order status"
+    ON public.orders FOR UPDATE
+    USING (public.is_admin())
+    WITH CHECK (public.is_admin());
+
+DROP POLICY IF EXISTS "Admins can delete orders" ON public.orders;
+CREATE POLICY "Admins can delete orders"
+    ON public.orders FOR DELETE
+    USING (public.is_admin());
+
+
+-- ------------------------------------------------------------------------------
+-- POLICIES: ORDER_ITEMS
+-- ------------------------------------------------------------------------------
+DROP POLICY IF EXISTS "Users and admins can view order items" ON public.order_items;
+CREATE POLICY "Users and admins can view order items"
+    ON public.order_items FOR SELECT
+    USING (
+        public.is_admin()
+        OR EXISTS (
+            SELECT 1 FROM public.orders
+            WHERE orders.id = order_items.order_id
+            AND (orders.user_id = auth.uid() OR orders.user_id IS NULL)
+        )
+    );
+
+DROP POLICY IF EXISTS "Users can insert order items" ON public.order_items;
+CREATE POLICY "Users can insert order items"
+    ON public.order_items FOR INSERT
+    WITH CHECK (public.order_exists(order_id));
+
+DROP POLICY IF EXISTS "Admins can delete order items" ON public.order_items;
+CREATE POLICY "Admins can delete order items"
+    ON public.order_items FOR DELETE
+    USING (public.is_admin());
+-- ==============================================================================
+-- SHOPSMART AI — EXPANDED 65-PRODUCT CATALOGUE SEED DATA
+-- ==============================================================================
+-- Realistic Indian Market Products across 10 categories with INR pricing:
+-- - Smartphones (8 items)
+-- - Laptops (5 items)
+-- - Tablets (4 items)
+-- - Headphones & Earbuds (6 items)
+-- - Smartwatches (4 items)
+-- - Electronics Accessories (11 items)
+-- - Home Appliances (6 items)
+-- - Fashion (7 items)
+-- - Home & Living (7 items)
+-- - Car Care (7 items)
+--
+-- Instructions: Run schema.sql first, then run this file in your Supabase SQL Editor:
+-- https://supabase.com/dashboard/project/unectsmgytpitjaxdgru/sql
+-- ==============================================================================
+
+INSERT INTO public.products (
+    id, name, category, description, price, original_price, discount_percent,
+    image_url, images, rating, reviews_count, specifications, stock_quantity,
+    availability, is_active, is_featured, is_trending, tags, ai_verdict
+) VALUES
+(
+    'a0000001-0000-0000-0000-000000000001',
+    'OnePlus Nord CE 4 5G (8GB RAM, 128GB Storage, Celadon Marble)',
+    'Smartphones',
+    'The definitive all-round smartphone under ₹20,000 in India. Powered by Qualcomm Snapdragon 7 Gen 3, a 120Hz Fluid AMOLED display, 50MP Sony LYT-600 OIS camera, and class-leading 100W SUPERVOOC charging that charges the massive 5,500mAh battery from 1-100% in just 29 minutes.',
+    19999.00,
+    24999.00,
+    20,
+    'https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=800&q=80',
+    '["https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=800&q=80","https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&q=80"]'::jsonb,
+    4.80,
+    3820,
+    '{"Processor":"Qualcomm Snapdragon 7 Gen 3 (4nm)","RAM":"8GB LPDDR4X (+8GB Virtual RAM)","Storage":"128GB UFS 3.1 (Expandable up to 1TB)","Display":"6.7\" 120Hz Fluid AMOLED FHD+","RearCamera":"50MP Sony LYT-600 with OIS + 8MP Ultra-wide","FrontCamera":"16MP Selfie Camera","Battery":"5500mAh with 100W SUPERVOOC Fast Charge","OS":"OxygenOS 14 based on Android 14","Warranty":"1 Year Manufacturer Warranty"}'::jsonb,
+    42,
+    'In Stock',
+    true,
+    true,
+    true,
+    ARRAY['Best Under ₹20,000', '5G', '100W Fast Charge', 'Sony OIS', 'AI Recommended']::TEXT[],
+    'The single best balanced smartphone purchase in India under ₹20,000. Phenomenal 100W charging, clean OxygenOS software, and dependable 50MP Sony OIS photography.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000002',
+    'Redmi Note 13 Pro 5G (8GB RAM, 256GB Storage, Arctic White)',
+    'Smartphones',
+    'Flagship camera photography at mid-range pricing. Features a ground-breaking 200MP Samsung ISOCELL HP3 camera with OIS + EIS, a 1.5K 120Hz Curved AMOLED display with Corning Gorilla Glass Victus, and Snapdragon 7s Gen 2 performance.',
+    21999.00,
+    28999.00,
+    24,
+    'https://images.unsplash.com/photo-1580910051074-3eb694886505?w=800&q=80',
+    '["https://images.unsplash.com/photo-1580910051074-3eb694886505?w=800&q=80","https://images.unsplash.com/photo-1565849904461-04a58ad377e0?w=800&q=80"]'::jsonb,
+    4.60,
+    2940,
+    '{"Processor":"Snapdragon 7s Gen 2 (4nm)","RAM":"8GB LPDDR4X","Storage":"256GB UFS 2.2","Display":"6.67\" 1.5K Curved AMOLED, 120Hz, 1800 nits","RearCamera":"200MP OIS Main + 8MP Ultra-wide + 2MP Macro","FrontCamera":"16MP Front Camera","Battery":"5100mAh with 67W Turbo Charge","OS":"MIUI 14 with Android 13 (HyperOS Ready)","Warranty":"1 Year Manufacturer Warranty"}'::jsonb,
+    28,
+    'In Stock',
+    true,
+    true,
+    false,
+    ARRAY['200MP Camera', '1.5K Display', '5G', 'Gorilla Glass Victus']::TEXT[],
+    'Unrivalled 200MP detail and stunning 1.5K display for photography lovers and OTT streaming enthusiasts around ₹22,000.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000003',
+    'Samsung Galaxy M34 5G (6GB RAM, 128GB Storage, Prism Silver)',
+    'Smartphones',
+    'The marathon battery king under ₹15,000. Armed with a monster 6,000mAh battery, vibrant 120Hz Super AMOLED display, 50MP No Shake OIS camera, and Samsung’s promise of 4 generations of Android OS updates.',
+    14999.00,
+    24499.00,
+    39,
+    'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=800&q=80',
+    '["https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=800&q=80"]'::jsonb,
+    4.50,
+    5120,
+    '{"Processor":"Exynos 1280 Octa-Core (5nm)","RAM":"6GB (+6GB RAM Plus)","Storage":"128GB (Expandable up to 1TB)","Display":"6.5\" 120Hz Super AMOLED FHD+ (1000 nits)","RearCamera":"50MP No Shake OIS + 8MP Ultra-wide + 2MP","FrontCamera":"13MP High-Res Selfie","Battery":"6000mAh with 25W Fast Charging Support","OS":"One UI 5.1 (4 OS Upgrades Guaranteed)","Warranty":"1 Year Brand Warranty for Phone, 6 Months for Accessories"}'::jsonb,
+    65,
+    'In Stock',
+    true,
+    true,
+    true,
+    ARRAY['Best Under ₹15,000', '6000mAh Battery', 'Super AMOLED', 'Samsung Knox']::TEXT[],
+    'Top pick under ₹15,000 for users prioritizing two-day battery life, Samsung display quality, and 4 years of guaranteed OS security updates.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000004',
+    'Realme Narzo 70x 5G (6GB RAM, 128GB Storage, Forest Green)',
+    'Smartphones',
+    'Blazing-fast 5G speeds at an accessible sub-₹12,000 price point. Features MediaTek Dimensity 6100+ 5G, 45W SUPERVOOC charging, dual stereo speakers, and an ultra-smooth 120Hz display.',
+    11999.00,
+    15999.00,
+    25,
+    'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=800&q=80',
+    '["https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=800&q=80"]'::jsonb,
+    4.40,
+    1820,
+    '{"Processor":"MediaTek Dimensity 6100+ 5G (6nm)","RAM":"6GB (+6GB Dynamic RAM)","Storage":"128GB Internal Storage","Display":"6.72\" 120Hz Ultra Smooth FHD+ Display","RearCamera":"50MP AI Primary Camera + 2MP Depth","FrontCamera":"8MP AI Selfie","Battery":"5000mAh with 45W SUPERVOOC Charger in Box","OS":"realme UI 5.0 based on Android 14","Warranty":"1 Year Domestic Warranty"}'::jsonb,
+    38,
+    'In Stock',
+    true,
+    false,
+    true,
+    ARRAY['Under ₹12,000', '45W Fast Charge', '120Hz Display', 'Dual Stereo']::TEXT[],
+    'Phenomenal entry-level 5G daily driver offering fast 45W charging in the box and stereo speakers under ₹12,000.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000005',
+    'POCO M6 5G (4GB RAM, 128GB Storage, Orion Blue)',
+    'Smartphones',
+    'India’s most affordable certified 5G smartphone under ₹10,000. Features a stunning glass-back design, 90Hz display with Gorilla Glass 3, MediaTek Dimensity 6100+ 5G processor, and a reliable 5000mAh battery.',
+    9499.00,
+    13999.00,
+    32,
+    'https://images.unsplash.com/photo-1574944985070-8f3ebc6b79d2?w=800&q=80',
+    '["https://images.unsplash.com/photo-1574944985070-8f3ebc6b79d2?w=800&q=80"]'::jsonb,
+    4.30,
+    3100,
+    '{"Processor":"MediaTek Dimensity 6100+ 5G (6nm)","RAM":"4GB (+4GB Turbo RAM)","Storage":"128GB (Expandable up to 1TB via Dedicated Slot)","Display":"6.74\" 90Hz HD+ Dot Drop Display","RearCamera":"50MP AI Dual Camera","FrontCamera":"5MP Selfie Camera","Battery":"5000mAh with 18W Fast Charging Support","OS":"MIUI 14 based on Android 13","Warranty":"1 Year Manufacturer Warranty"}'::jsonb,
+    50,
+    'In Stock',
+    true,
+    false,
+    false,
+    ARRAY['Best Under ₹10,000', 'Affordable 5G', 'Glass Back']::TEXT[],
+    'The undisputed budget winner under ₹10,000 for users who want legitimate 5G connectivity without overspending.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000006',
+    'iQOO Z9s 5G (8GB RAM, 128GB Storage, Titanium Matte)',
+    'Smartphones',
+    'The gaming and speed champion under ₹20,000. Equipped with the MediaTek Dimensity 7300 4nm processor scoring over 700,000+ on AnTuTu, a 3D curved 120Hz AMOLED display with 1800 nits peak brightness, and 50MP Sony IMX882 OIS camera.',
+    19499.00,
+    25999.00,
+    25,
+    'https://images.unsplash.com/photo-1567581935884-3349723552ca?w=800&q=80',
+    '["https://images.unsplash.com/photo-1567581935884-3349723552ca?w=800&q=80"]'::jsonb,
+    4.70,
+    1490,
+    '{"Processor":"MediaTek Dimensity 7300 (4nm Energy Efficient)","RAM":"8GB LPDDR4X","Storage":"128GB UFS 2.2","Display":"6.77\" 120Hz 3D Curved AMOLED (1800 nits)","RearCamera":"50MP Sony IMX882 OIS + 2MP Bokeh","FrontCamera":"16MP Portrait Selfie","Battery":"5500mAh Ultra-Thin Battery with 44W FlashCharge","OS":"Funtouch OS 14 based on Android 14","Warranty":"1 Year Brand Warranty"}'::jsonb,
+    30,
+    'In Stock',
+    true,
+    true,
+    true,
+    ARRAY['Gaming King', 'Dimensity 7300', 'Curved AMOLED', 'Under ₹20,000']::TEXT[],
+    'Top recommendation under ₹20,000 for BGMI/gaming enthusiasts wanting 3D curved AMOLED aesthetics and relentless processing speed.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000007',
+    'Apple iPhone 15 (128GB, Black)',
+    'Smartphones',
+    'The modern iOS benchmark. Features the innovative Dynamic Island, an advanced 48MP main camera with 2x optical-quality telephoto, color-infused back glass design, durable Ceramic Shield, and universal USB-C charging.',
+    64999.00,
+    79900.00,
+    19,
+    'https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=800&q=80',
+    '["https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=800&q=80","https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?w=800&q=80"]'::jsonb,
+    4.90,
+    8400,
+    '{"Processor":"A16 Bionic Chip (6-core CPU, 5-core GPU)","RAM":"6GB High-Bandwidth","Storage":"128GB NVMe","Display":"6.1\" Super Retina XDR OLED (2000 nits peak outdoor)","RearCamera":"48MP Main with Sensor-shift OIS + 12MP Ultra-wide","FrontCamera":"12MP TrueDepth Camera with Autofocus","Battery":"Up to 20 hours video playback, MagSafe Wireless Charging","OS":"iOS 17 (Upgradable to iOS 18 with Apple Intelligence)","Warranty":"1 Year Apple International Warranty"}'::jsonb,
+    22,
+    'In Stock',
+    true,
+    true,
+    true,
+    ARRAY['Apple Flagship', 'Dynamic Island', '48MP Camera', 'USB-C']::TEXT[],
+    'The gold-standard premium smartphone for video creators and ecosystem users wanting unmatched reliability and longevity.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000008',
+    'Samsung Galaxy S24 Ultra 5G (12GB RAM, 256GB Storage, Titanium Gray)',
+    'Smartphones',
+    'The pinnacle of Android technology. Engineered with a lightweight Titanium frame, built-in S Pen, cutting-edge Galaxy AI capabilities (Circle to Search, Live Call Translate), Snapdragon 8 Gen 3 for Galaxy, and unmatched 200MP Quad Telephoto optical zoom.',
+    119999.00,
+    134999.00,
+    11,
+    'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=800&q=80',
+    '["https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=800&q=80"]'::jsonb,
+    4.90,
+    2150,
+    '{"Processor":"Snapdragon 8 Gen 3 for Galaxy (4nm)","RAM":"12GB LPDDR5X","Storage":"256GB UFS 4.0","Display":"6.8\" Flat Dynamic AMOLED 2X, 120Hz, 2600 nits (Gorilla Armor Anti-Reflective)","RearCamera":"200MP OIS + 50MP (5x Optical) + 10MP (3x Optical) + 12MP Ultra-wide","FrontCamera":"12MP Dual Pixel AF","Battery":"5000mAh with 45W Fast Charging + Wireless PowerShare","OS":"One UI 6.1 on Android 14 (7 Years OS Upgrades)","Warranty":"1 Year Comprehensive Manufacturer Warranty"}'::jsonb,
+    15,
+    'In Stock',
+    true,
+    true,
+    false,
+    ARRAY['Ultra Flagship', 'Galaxy AI', 'S Pen', '200MP Zoom', 'Titanium']::TEXT[],
+    'The supreme Android power-user device. Galaxy AI, unmatched 100x zoom photography, and a titanium flat screen make it an investment in elite mobile productivity.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000009',
+    'TitanBook Pro M2 Creator Laptop (16GB/1TB SSD, Space Black)',
+    'Laptops',
+    'Flagship creator laptop engineered for heavy code compilation, 4K rendering, and AI model workflows. Features a 14.2-inch Liquid Retina XDR display with 120Hz ProMotion and 18-hour battery endurance.',
+    125000.00,
+    139900.00,
+    11,
+    'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800&q=80',
+    '["https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800&q=80","https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?w=800&q=80"]'::jsonb,
+    4.90,
+    428,
+    '{"Processor":"Next-Gen 12-Core Silicon SoC","Memory":"16GB Unified High-Bandwidth RAM","Storage":"1TB NVMe PCIe 4.0 SSD","Display":"14.2\" Liquid Retina XDR (3024 x 1964, 120Hz)","Battery":"Up to 18 Hours","Warranty":"1 Year Manufacturer Onsite Warranty"}'::jsonb,
+    14,
+    'In Stock',
+    true,
+    true,
+    true,
+    ARRAY['Flagship', 'AI Recommended', '16GB RAM', 'Creator']::TEXT[],
+    'Top pick for software engineering students and creators needing raw compilation performance without thermal throttling.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000010',
+    'ASUS Vivobook 15 Thin & Light (Intel Core i5 12th Gen, 16GB RAM, 512GB SSD)',
+    'Laptops',
+    'The standard mid-range coding and business workhorse under ₹50,000. Powered by an Intel Core i5-1235U 10-core processor, 16GB dual-channel RAM, fast 512GB PCIe 4.0 SSD, fingerprint reader, and a 180-degree lay-flat hinge.',
+    47990.00,
+    69990.00,
+    31,
+    'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&q=80',
+    '["https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&q=80"]'::jsonb,
+    4.60,
+    1240,
+    '{"Processor":"Intel Core i5-1235U (10 Cores, up to 4.4 GHz)","Memory":"16GB DDR4 RAM (Expandable)","Storage":"512GB M.2 NVMe PCIe 4.0 SSD","Display":"15.6\" FHD (1920 x 1080) Anti-Glare, 250 nits","Graphics":"Intel Iris Xe Graphics","Battery":"42WHrs with Fast Charge (60% in 49 mins)","OS":"Windows 11 Home + MS Office Home & Student 2021","Warranty":"1 Year Onsite Warranty"}'::jsonb,
+    34,
+    'In Stock',
+    true,
+    true,
+    true,
+    ARRAY['Best Under ₹50,000', '16GB RAM', 'Intel i5', 'Thin & Light']::TEXT[],
+    'Unbeatable price-to-performance ratio under ₹50,000 for college students learning Python, web development, and multitasking.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000011',
+    'Lenovo IdeaPad Slim 3 (AMD Ryzen 5 7520U, 16GB LPDDR5, 512GB SSD, Arctic Grey)',
+    'Laptops',
+    'Ultra-efficient mobile computing featuring AMD Ryzen 5 7520U, high-speed 16GB LPDDR5 memory, 15.6-inch FHD display with TUV Rheinland Low Blue Light certification, and rapid charging.',
+    41990.00,
+    62000.00,
+    32,
+    'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=800&q=80',
+    '["https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=800&q=80"]'::jsonb,
+    4.50,
+    980,
+    '{"Processor":"AMD Ryzen 5 7520U (4 Cores / 8 Threads, up to 4.3 GHz)","Memory":"16GB LPDDR5-5500 RAM","Storage":"512GB SSD M.2 2242 PCIe 4.0x4 NVMe","Display":"15.6\" FHD (1920x1080) IPS 300 nits Anti-glare","Battery":"47Wh with Rapid Charge Boost (2 hrs run on 15 min charge)","Weight":"1.62 kg Lightweight","OS":"Windows 11 Home","Warranty":"1 Year Lenovo Onsite Warranty + 1 Year Accidental Damage Protection"}'::jsonb,
+    20,
+    'In Stock',
+    true,
+    false,
+    true,
+    ARRAY['Ryzen 5', '16GB LPDDR5', 'Under ₹45,000', 'Student Pick']::TEXT[],
+    'Whisper-quiet thermals and lightning-fast LPDDR5 RAM make this a reliable choice for budget-conscious engineering students.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000012',
+    'HP Pavilion 14 (Intel Core i5 13th Gen, 16GB RAM, 512GB SSD, Natural Silver)',
+    'Laptops',
+    'Premium compact aluminum chassis laptop with 13th Gen Intel Core i5-1335U power, crisp 14-inch micro-edge IPS display, backlit keyboard, Bang & Olufsen tuned audio, and HP Fast Charge.',
+    62990.00,
+    77990.00,
+    19,
+    'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=800&q=80',
+    '["https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=800&q=80"]'::jsonb,
+    4.70,
+    760,
+    '{"Processor":"Intel Core i5-1335U (10 Cores, 12 Threads, up to 4.6 GHz)","Memory":"16GB DDR4-3200 MHz RAM","Storage":"512GB PCIe NVMe M.2 SSD","Display":"14\" FHD IPS Micro-Edge Anti-Glare 300 nits","Audio":"Audio by B&O Dual Speakers","Battery":"Up to 9 hours 45 mins battery life","Weight":"1.41 kg Ultra-Portable","OS":"Windows 11 Home + MS Office 2021","Warranty":"1 Year HP Onsite Warranty"}'::jsonb,
+    18,
+    'In Stock',
+    true,
+    true,
+    false,
+    ARRAY['Intel 13th Gen', 'B&O Audio', 'Backlit KB', 'Under ₹65,000']::TEXT[],
+    'Ideal balance of portability, executive metallic build, and B&O speaker fidelity under ₹65,000.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000013',
+    'Acer Aspire Lite (AMD Ryzen 3 5300U, 8GB RAM, 512GB SSD, Steel Gray)',
+    'Laptops',
+    'The champion budget laptop under ₹30,000. Features AMD Ryzen 3 5300U quad-core processor, expandable 8GB RAM, 512GB NVMe SSD, and a full numeric keypad in a modern slim bezel enclosure.',
+    28990.00,
+    42999.00,
+    33,
+    'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80',
+    '["https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80"]'::jsonb,
+    4.40,
+    1650,
+    '{"Processor":"AMD Ryzen 3 5300U (4 Cores / 8 Threads, up to 3.8 GHz)","Memory":"8GB DDR4 (Dual-channel upgradable to 32GB)","Storage":"512GB PCIe Gen3 NVMe SSD","Display":"15.6\" FHD 1920 x 1080 High-Brightness Acer ComfyView","Battery":"36Wh Lithium Ion, 65W AC Adapter","Weight":"1.59 kg","OS":"Windows 11 Home","Warranty":"1 Year International Travelers Warranty"}'::jsonb,
+    25,
+    'In Stock',
+    true,
+    false,
+    false,
+    ARRAY['Best Under ₹30,000', 'Budget Laptop', 'SSD Fast Boot']::TEXT[],
+    'A true budget lifesaver under ₹30,000 providing legitimate SSD speeds and upgradeable RAM for school projects and office tasks.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000014',
+    'Apple iPad 10th Gen (10.9-inch, Wi-Fi, 64GB, Blue)',
+    'Tablets',
+    'The most versatile student tablet in the world. Features a colorful all-screen 10.9-inch Liquid Retina display, fast A14 Bionic chip, landscape 12MP Ultra Wide front camera with Center Stage, and universal USB-C.',
+    32900.00,
+    39900.00,
+    18,
+    'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=800&q=80',
+    '["https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=800&q=80"]'::jsonb,
+    4.80,
+    3400,
+    '{"Processor":"Apple A14 Bionic with 16-core Neural Engine","Display":"10.9\" Liquid Retina True Tone Display (500 nits)","Storage":"64GB Flash Storage","RearCamera":"12MP Wide camera with 4K video recording","FrontCamera":"Landscape 12MP Ultra Wide with Center Stage","Connectivity":"Wi-Fi 6 (802.11ax), Bluetooth 5.2, USB-C","Battery":"Up to 10 hours surfing the web on Wi-Fi","Warranty":"1 Year Apple International Warranty"}'::jsonb,
+    28,
+    'In Stock',
+    true,
+    true,
+    true,
+    ARRAY['iPad', 'Center Stage', 'Apple Pencil Ready', 'Under ₹35,000']::TEXT[],
+    'Supreme digital note-taking and multimedia device for college students and digital illustrators.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000015',
+    'Xiaomi Pad 6 (11-inch 2.8K 144Hz Display, Snapdragon 870, 8GB/256GB)',
+    'Tablets',
+    'Flagship Android tablet performance under ₹30,000. Features an ultra-crisp 2.8K 144Hz refresh rate display with Dolby Vision, quad speakers with Dolby Atmos, Qualcomm Snapdragon 870 processor, and a metal unibody design.',
+    26999.00,
+    39999.00,
+    32,
+    'https://images.unsplash.com/photo-1561154464-82e9adf32764?w=800&q=80',
+    '["https://images.unsplash.com/photo-1561154464-82e9adf32764?w=800&q=80"]'::jsonb,
+    4.70,
+    1980,
+    '{"Processor":"Qualcomm Snapdragon 870 (7nm)","RAM":"8GB LPDDR5","Storage":"256GB UFS 3.1","Display":"11\" 2.8K (2880x1800) 144Hz 7-stage refresh rate, Dolby Vision","Audio":"Quad Speakers with Dolby Atmos Hi-Res Audio","Battery":"8840mAh with 33W Fast Charging","OS":"MIUI Pad 14 based on Android 13","Warranty":"1 Year Brand Warranty"}'::jsonb,
+    19,
+    'In Stock',
+    true,
+    true,
+    false,
+    ARRAY['144Hz 2.8K Display', 'Snapdragon 870', 'Quad Speakers', 'Under ₹30,000']::TEXT[],
+    'Best multimedia and gaming tablet in India under ₹30,000 with unmatched 144Hz refresh rate smoothness.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000016',
+    'Samsung Galaxy Tab A9+ (11.0-inch 90Hz Display, 8GB RAM, 128GB Storage, Wi-Fi)',
+    'Tablets',
+    'Modern productivity tablet featuring Samsung DeX mode for multi-window desktop style multitasking, 11-inch 90Hz screen, Quad speakers powered by Dolby Atmos, and Snapdragon 695 5G chip architecture.',
+    17999.00,
+    25999.00,
+    31,
+    'https://images.unsplash.com/photo-1589739900243-4b52cd9b104e?w=800&q=80',
+    '["https://images.unsplash.com/photo-1589739900243-4b52cd9b104e?w=800&q=80"]'::jsonb,
+    4.50,
+    2210,
+    '{"Processor":"Qualcomm Snapdragon 695 Octa-Core","RAM":"8GB RAM","Storage":"128GB (Expandable up to 1TB)","Display":"11.0\" WQXGA 90Hz Display","Audio":"Quad Speakers with Dolby Atmos","Battery":"7040mAh with 15W Fast Charge","OS":"Android 13 with One UI 5.1 (Samsung DeX support)","Warranty":"1 Year Manufacturer Warranty"}'::jsonb,
+    35,
+    'In Stock',
+    true,
+    false,
+    true,
+    ARRAY['Samsung DeX', 'Under ₹20,000', 'Quad Speakers', '90Hz']::TEXT[],
+    'Top choice under ₹20,000 for users who want desktop-style multi-window productivity with Samsung DeX.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000017',
+    'Lenovo Tab M11 with Bundled Active Stylus Pen (4GB/128GB, Seafoam Green)',
+    'Tablets',
+    'The ultimate budget learning package. Bundled with an active Lenovo Pen for handwritten homework and sketches, an 11-inch 90Hz WUXGA display, Quad Speakers with Dolby Atmos, and curated reading mode.',
+    12999.00,
+    19000.00,
+    32,
+    'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&q=80',
+    '["https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&q=80"]'::jsonb,
+    4.30,
+    1120,
+    '{"Processor":"MediaTek Helio G88 Octa-Core","RAM":"4GB LPDDR4X","Storage":"128GB eMMC 5.1","Display":"11\" WUXGA (1920x1200) IPS 90Hz, 400 nits","Accessories":"Bundled Active Stylus Pen in Box","Battery":"7040mAh (Up to 10 hours video playback)","Warranty":"1 Year Warranty on Tablet, 6 Months on Accessories"}'::jsonb,
+    26,
+    'In Stock',
+    true,
+    false,
+    false,
+    ARRAY['Stylus Included', 'Under ₹15,000', 'Student Tablet']::TEXT[],
+    'Outstanding value under ₹13,000 since it includes a pressure-sensitive digital pen directly in the box.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000018',
+    'AcousticPro Studio Noise-Cancelling Headphones',
+    'Headphones & Earbuds',
+    'Studio-grade over-ear wireless headphones with custom 45mm planar drivers and dual-chip neural active noise cancellation tailored for noisy Indian transit and open workspaces.',
+    24999.00,
+    29999.00,
+    17,
+    'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80',
+    '["https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80","https://images.unsplash.com/photo-1484704849700-f032a568e944?w=800&q=80"]'::jsonb,
+    4.90,
+    1420,
+    '{"Driver":"45mm Planar Magnetic","ANC":"Adaptive Neural Cancellation (42dB)","Battery":"40 Hours Playback","Connectivity":"Bluetooth 5.3 + Aux","Weight":"254g Lightweight","Warranty":"2 Years Domestic Warranty"}'::jsonb,
+    28,
+    'In Stock',
+    true,
+    true,
+    false,
+    ARRAY['Best Seller', 'Hi-Res Audio', 'Planar Drivers', 'Studio ANC']::TEXT[],
+    'Outstanding soundstage with punchy sub-bass and pristine vocal clarity. The neural noise cancelling blocks train and traffic roar with ease.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000019',
+    'EchoPulse True Wireless Earbuds with ANC',
+    'Headphones & Earbuds',
+    'Compact in-ear wireless earbuds delivering heavy Indian bass tuning, 30dB active noise cancellation, and ultra-low latency gaming mode with 40-hour total playback case.',
+    1899.00,
+    3999.00,
+    53,
+    'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=800&q=80',
+    '["https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=800&q=80"]'::jsonb,
+    4.60,
+    3840,
+    '{"Driver":"10mm Dynamic Bass Boost","ANC":"30dB Hybrid Active Noise Cancellation","Battery":"40 Hours Total with USB-C Case","Latency":"45ms Ultra-Low Latency Mode","WaterResistance":"IPX5 Sweat & Water Proof","Warranty":"1 Year Replacement Warranty"}'::jsonb,
+    76,
+    'In Stock',
+    true,
+    true,
+    true,
+    ARRAY['Under ₹2,000', 'ANC Earbuds', 'Gaming Mode', 'AI Recommended']::TEXT[],
+    'Unbeatable value under ₹2,000 for daily commuting, workouts, and mobile gaming with active noise cancellation.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000020',
+    'boAt Airdopes 141 ANC TWS Earbuds (32dB ANC, 42H Playtime, Beast Mode)',
+    'Headphones & Earbuds',
+    'India’s most popular budget ANC true wireless earbuds. Delivers 32dB active noise cancellation, signature boAt Extra Bass sound, ENx quad-mic technology for clear phone calls, and 42 hours total playtime.',
+    1499.00,
+    5990.00,
+    75,
+    'https://images.unsplash.com/photo-1606220588913-b3aacb4d2f46?w=800&q=80',
+    '["https://images.unsplash.com/photo-1606220588913-b3aacb4d2f46?w=800&q=80"]'::jsonb,
+    4.50,
+    9200,
+    '{"Driver":"10mm High-Fidelity Bass Drivers","NoiseCancellation":"Up to 32dB Active Noise Cancellation","Playtime":"42 Hours total (6 hours on single charge)","CallQuality":"Quad Mics with ENx Environmental Noise Cancellation","FastCharge":"ASAP Charge (10 mins = 150 mins playtime)","Warranty":"1 Year Brand Warranty"}'::jsonb,
+    85,
+    'In Stock',
+    true,
+    false,
+    true,
+    ARRAY['Best Under ₹1,500', 'boAt Signature Bass', '32dB ANC', 'ENx Quad Mics']::TEXT[],
+    'India’s budget king under ₹1,500 with punchy bass, fast charging, and proven brand reliability.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000021',
+    'OnePlus Nord Buds 3 Pro ANC (49dB Hybrid ANC, 12.4mm Titanized Driver)',
+    'Headphones & Earbuds',
+    'Flagship-grade 49dB hybrid active noise cancellation at an accessible price. Features oversized 12.4mm titanized dynamic drivers, BassWave 2.0 enhancement, dual-device pairing, and up to 44 hours of endurance.',
+    2799.00,
+    3999.00,
+    30,
+    'https://images.unsplash.com/photo-1631867675167-90a456a90863?w=800&q=80',
+    '["https://images.unsplash.com/photo-1631867675167-90a456a90863?w=800&q=80"]'::jsonb,
+    4.70,
+    2450,
+    '{"Driver":"12.4mm Titanized Diaphragm","ANC":"49dB Smart Hybrid Active Noise Cancellation","Battery":"Up to 44 Hours total battery life","Connectivity":"Bluetooth 5.4 with Google Fast Pair","WaterResistance":"IP55 Dust and Water Resistant","Warranty":"1 Year Brand Warranty"}'::jsonb,
+    40,
+    'In Stock',
+    true,
+    true,
+    true,
+    ARRAY['49dB ANC', 'OnePlus BassWave', 'Dual Device Connect', 'Under ₹3,000']::TEXT[],
+    'Class-leading 49dB noise reduction and dual-device connectivity make this the top choice under ₹3,000.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000022',
+    'Sony WH-1000XM5 Wireless Industry-Leading ANC Headphones (Silver)',
+    'Headphones & Earbuds',
+    'The worldwide benchmark for noise cancellation and acoustic precision. Powered by dual processors V1 and HD Noise Cancelling QN1, 8 precision microphones, LDAC Hi-Res Wireless Audio, and ultra-comfortable soft-fit leather.',
+    28990.00,
+    34990.00,
+    17,
+    'https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=800&q=80',
+    '["https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=800&q=80"]'::jsonb,
+    4.90,
+    4100,
+    '{"Driver":"30mm Precision Carbon Fiber Composite","Processors":"Dual Processor V1 + HD QN1","Microphones":"8 Microphones with AI Beamforming Call Quality","Battery":"30 Hours (3 mins quick charge = 3 hours playback)","Features":"Speak-to-Chat, Multipoint Connection, Wearing Sensor","Warranty":"1 Year Domestic Warranty"}'::jsonb,
+    16,
+    'In Stock',
+    true,
+    true,
+    false,
+    ARRAY['Sony Flagship', 'Industry-Leading ANC', 'LDAC Hi-Res', 'Luxury Audio']::TEXT[],
+    'The definitive executive headphones for international air travel, coding marathons, and absolute acoustic silence.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000023',
+    'Realme Buds T300 TWS with 30dB ANC & 360 Spatial Audio Effect',
+    'Headphones & Earbuds',
+    'Feature-rich true wireless earbuds delivering 360-degree spatial audio, 12.4mm dynamic bass booster, 30dB active noise cancellation, and IP55 water resistance in a sleek pocket-friendly case.',
+    1999.00,
+    3999.00,
+    50,
+    'https://images.unsplash.com/photo-1572536147248-ac59a8abfa4b?w=800&q=80',
+    '["https://images.unsplash.com/photo-1572536147248-ac59a8abfa4b?w=800&q=80"]'::jsonb,
+    4.60,
+    3120,
+    '{"Driver":"12.4mm Dynamic Bass Booster","ANC":"30dB Active Noise Cancellation","Features":"360° Spatial Audio Effect","Battery":"40 Hours Total Playback","WaterResistance":"IP55 Water and Dust Resistant","Warranty":"1 Year Warranty"}'::jsonb,
+    60,
+    'In Stock',
+    true,
+    false,
+    true,
+    ARRAY['Spatial Audio', '30dB ANC', 'Under ₹2,000', '12.4mm Bass']::TEXT[],
+    'Exceptional sound separation and spatial stage tuning make this an outstanding purchase at exactly ₹1,999.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000024',
+    'NeoGlow AMOLED Smartwatch with Bluetooth Calling',
+    'Smartwatches',
+    'Premium circular metallic smartwatch with ultra-bright 1.43" AMOLED Always-On display, continuous heart rate, SpO2 sensor, and dual-mic AI noise reduction for crystal clear Bluetooth calls.',
+    4999.00,
+    8999.00,
+    44,
+    'https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=800&q=80',
+    '["https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=800&q=80"]'::jsonb,
+    4.70,
+    2190,
+    '{"Display":"1.43\" AMOLED (1000 nits, Always-On)","Battery":"Up to 7 Days Normal Use","Sensors":"Optical HR, SpO2, Sleep Tracker","WaterResistance":"IP68 Water & Dust Resistant","Calling":"Bluetooth 5.2 ENC Clear Calls","Warranty":"1 Year Replacement Warranty"}'::jsonb,
+    52,
+    'In Stock',
+    true,
+    true,
+    true,
+    ARRAY['Trending', 'Under ₹5,000', 'AMOLED', 'BT Calling']::TEXT[],
+    'Best value smartwatch in the ₹4,000–₹5,000 bracket offering flagship display brightness and dependable call clarity.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000025',
+    'Noise ColorFit Pro 5 Max AMOLED Smartwatch (1.96" Display, Post-Workout Recovery)',
+    'Smartwatches',
+    'Large-screen fitness companion boasting a vibrant 1.96-inch AMOLED display, TruSync Bluetooth calling, emergency SOS alert system, post-workout training recovery telemetry, and stress monitoring.',
+    3999.00,
+    9999.00,
+    60,
+    'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?w=800&q=80',
+    '["https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?w=800&q=80"]'::jsonb,
+    4.60,
+    4500,
+    '{"Display":"1.96\" AMOLED Always-On (600 nits)","Calling":"TruSync Bluetooth Calling with Dial Pad","Health":"Heart Rate, SpO2, Sleep Stages, Stress, VO2 Max","Battery":"Up to 7 Days (2 Days with Heavy Calling)","Build":"Metallic Finish with Silicon Strap","Warranty":"1 Year Brand Warranty"}'::jsonb,
+    38,
+    'In Stock',
+    true,
+    true,
+    false,
+    ARRAY['1.96" AMOLED', 'Noise TruSync', 'Under ₹4,000', 'VO2 Max']::TEXT[],
+    'Top fitness smartwatch under ₹4,000 with detailed post-workout recovery insights and rich watch faces.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000026',
+    'Fire-Boltt Phoenix Ultra Luxury Stainless Steel Smartwatch',
+    'Smartwatches',
+    'Executive steel timepiece elegance meeting smart telemetry. Features a stainless steel luxury mesh magnetic strap, 1.39-inch HD round screen, AI voice assistant support, Bluetooth calling, and 120+ sports modes.',
+    1699.00,
+    12499.00,
+    86,
+    'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80',
+    '["https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80"]'::jsonb,
+    4.30,
+    7800,
+    '{"Display":"1.39\" High-Resolution Round Display","Strap":"Stainless Steel Magnetic Mesh Strap","Calling":"Bluetooth Phone Calling + AI Voice Assistant","Modes":"120+ Workout & Sports Modes","Battery":"Up to 5 Days Normal Usage","Warranty":"1 Year Brand Warranty"}'::jsonb,
+    65,
+    'In Stock',
+    true,
+    false,
+    true,
+    ARRAY['Stainless Steel', 'Under ₹2,000', 'Executive Design', 'BT Calling']::TEXT[],
+    'Unmatched luxury executive appearance under ₹2,000 for formal office wear and weddings.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000027',
+    'Samsung Galaxy Watch 6 (44mm, Bluetooth, Graphite)',
+    'Smartwatches',
+    'The pinnacle of Android wearable intelligence. Features a sapphire crystal Super AMOLED display, Wear OS powered by Samsung, ECG & Blood Pressure telemetry, BIA Body Composition sensor, and personalized sleep coaching.',
+    19999.00,
+    33999.00,
+    41,
+    'https://images.unsplash.com/photo-1510017803434-a899398421b3?w=800&q=80',
+    '["https://images.unsplash.com/photo-1510017803434-a899398421b3?w=800&q=80"]'::jsonb,
+    4.80,
+    1650,
+    '{"Display":"1.5\" Super AMOLED Sapphire Crystal (2000 nits)","Processor":"Exynos W930 Dual-Core 1.4GHz","OS":"Wear OS powered by Samsung (One UI 5 Watch)","Sensors":"BioActive Sensor (Optical HR + ECG + BIA Body Fat)","Durability":"5ATM + IP68 / MIL-STD-810H Military Standard","Warranty":"1 Year Samsung India Warranty"}'::jsonb,
+    14,
+    'In Stock',
+    true,
+    true,
+    false,
+    ARRAY['Wear OS', 'Sapphire Crystal', 'ECG Sensor', 'Samsung Flagship']::TEXT[],
+    'The most comprehensive health, wellness, and WearOS smartwatch for Android users in India.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000028',
+    'Dual-Port 33W GaN Fast Wall Charger',
+    'Electronics Accessories',
+    'Compact Gallium Nitride (GaN) fast charger with dual Type-C and USB-A outputs. Powers iPhones, Samsung Galaxy, and OnePlus devices with temperature protection.',
+    799.00,
+    1499.00,
+    47,
+    'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?w=800&q=80',
+    '["https://images.unsplash.com/photo-1583863788434-e58a36330cf0?w=800&q=80"]'::jsonb,
+    4.70,
+    1105,
+    '{"Output":"33W Max Power Delivery 3.0 / PPS / QC 4.0","Ports":"1x Type-C + 1x USB-A","Technology":"GaN III Semiconductor Technology","Safety":"Over-voltage, Over-heating, Short-circuit protection","Warranty":"6 Months Replacement Warranty"}'::jsonb,
+    95,
+    'In Stock',
+    true,
+    false,
+    true,
+    ARRAY['Under ₹1,000', 'GaN Fast Charger', 'Dual Port']::TEXT[],
+    'Everyday tech staple that replaces bulky adapters with a pocket-friendly footprint.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000029',
+    'Armored Braided 60W Type-C to Type-C Cable (1.5m)',
+    'Electronics Accessories',
+    'Heavy-duty nylon braided Type-C cable with reinforced zinc-alloy connector housings. Supports 60W fast charging and 480Mbps data synchronization.',
+    349.00,
+    799.00,
+    56,
+    'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80',
+    '["https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80"]'::jsonb,
+    4.50,
+    2340,
+    '{"Power":"60W PD (20V / 3A)","DataTransfer":"480 Mbps USB 2.0","Length":"1.5 Meters (5 Feet)","Durability":"Tested for 25,000+ bends","Warranty":"6 Months Replacement"}'::jsonb,
+    120,
+    'In Stock',
+    true,
+    false,
+    false,
+    ARRAY['Under ₹500', 'Fast Charging', 'Braided Cable']::TEXT[],
+    'Tangle-free, heavy-gauge copper cable built to outlast ordinary PVC wires.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000030',
+    'Mi 20000mAh 18W Fast Charging Power Bank 3i (Triple Output, Sandstone Black)',
+    'Electronics Accessories',
+    'High-density 20,000mAh Lithium Polymer power bank with triple output ports (2x USB-A, 1x Type-C) capable of simultaneous charging, two-way 18W fast charging, and 12-layer advanced circuit protection.',
+    1899.00,
+    2199.00,
+    14,
+    'https://images.unsplash.com/photo-1622445262464-84b1456045b6?w=800&q=80',
+    '["https://images.unsplash.com/photo-1622445262464-84b1456045b6?w=800&q=80"]'::jsonb,
+    4.60,
+    11400,
+    '{"Capacity":"20000mAh (74Wh 3.7V) High-Density Li-Polymer","Output":"18W Fast Charging (2x USB-A + 1x Type-C)","Input":"Micro-USB + Type-C Dual Input","Protection":"12-Layer Advanced Chip Protection","Warranty":"6 Months Brand Warranty"}'::jsonb,
+    88,
+    'In Stock',
+    true,
+    true,
+    true,
+    ARRAY['Best Seller', '20000mAh', 'Power Bank', 'Under ₹2,000']::TEXT[],
+    'The most dependable travel power bank in India capable of recharging a typical smartphone 4 to 5 times.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000031',
+    'Portronics 6-in-1 USB-C Multiport Hub with 4K HDMI & 100W PD Pass-through',
+    'Electronics Accessories',
+    'Essential aluminum multiport adapter for modern laptops and tablets. Features 4K@30Hz HDMI video output, 100W Power Delivery pass-through charging, 3 high-speed USB 3.0 ports, and SD card reader.',
+    1299.00,
+    2499.00,
+    48,
+    'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80',
+    '["https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80"]'::jsonb,
+    4.50,
+    1620,
+    '{"Ports":"1x HDMI 4K@30Hz, 3x USB 3.0 (5Gbps), 1x Type-C 100W PD, 1x SD/TF","Material":"Aircraft Grade Aluminum Alloy with Heat Dissipation","Compatibility":"MacBook, Windows Laptops, iPad Pro, Android OTG","Warranty":"1 Year Brand Warranty"}'::jsonb,
+    45,
+    'In Stock',
+    true,
+    false,
+    true,
+    ARRAY['USB-C Hub', '4K HDMI', '100W PD', 'Under ₹1,500']::TEXT[],
+    'Indispensable desk accessory for connecting monitors, pen drives, and chargers to modern slim laptops.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000032',
+    'SanDisk Extreme 1TB Portable External NVMe SSD (Up to 1050MB/s, Rugged IP65)',
+    'Electronics Accessories',
+    'Rugged, ultra-compact high-speed portable solid state drive. Features NVMe performance with up to 1050MB/s read and 1000MB/s write speeds, IP65 water and dust resistance, 3-meter drop protection, and handy carabiner loop.',
+    8999.00,
+    17500.00,
+    49,
+    'https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?w=800&q=80',
+    '["https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?w=800&q=80"]'::jsonb,
+    4.80,
+    3100,
+    '{"Capacity":"1TB High-Performance NVMe SSD","Speed":"Up to 1050MB/s Read, 1000MB/s Write","Interface":"USB 3.2 Gen 2 (Type-C to C and C to A cables included)","Durability":"IP65 Water/Dust Resistance, 3-Meter Drop Protection","Warranty":"5 Years Manufacturer Limited Warranty"}'::jsonb,
+    20,
+    'In Stock',
+    true,
+    true,
+    false,
+    ARRAY['1TB NVMe SSD', '1050MB/s Speed', 'Rugged IP65', 'Content Creators']::TEXT[],
+    'Top recommendation for software engineers and photographers needing blazingly fast external project storage.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000033',
+    'Spigen Ultra Hybrid Shockproof MagSafe Case for Smartphones',
+    'Electronics Accessories',
+    'Mil-grade drop protection case with anti-yellowing crystal clear back and shock-absorbing TPU bumper featuring Air Cushion technology and integrated strong magnetic ring.',
+    1499.00,
+    2499.00,
+    40,
+    'https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?w=800&q=80',
+    '["https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?w=800&q=80"]'::jsonb,
+    4.70,
+    4200,
+    '{"Material":"Polycarbonate Back + Flexible TPU Bumper","Protection":"Air Cushion Technology with Mil-Grade Drop Testing","Features":"Anti-Yellowing Blue Resin, Raised Bezel Screen Protection","Warranty":"6 Months Brand Warranty"}'::jsonb,
+    55,
+    'In Stock',
+    true,
+    false,
+    false,
+    ARRAY['Spigen Case', 'Shockproof', 'MagSafe Compatible']::TEXT[],
+    'The most reliable transparent phone case that prevents shatter damage while showcasing the phone’s original color.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000034',
+    'Philips Digital Air Fryer with Rapid Air Technology (4.1L, 1400W, Black)',
+    'Home Appliances',
+    'Healthy guilt-free Indian cooking with up to 90% less oil. Features patented Rapid Air starfish design for uniform 360-degree heat circulation, digital touchscreen with 7 preset menus (samosa, fries, chicken, paneer tikka, baking), and Keep Warm function.',
+    6999.00,
+    11995.00,
+    42,
+    'https://images.unsplash.com/photo-1585338107529-13afc5f02586?w=800&q=80',
+    '["https://images.unsplash.com/photo-1585338107529-13afc5f02586?w=800&q=80"]'::jsonb,
+    4.80,
+    3890,
+    '{"Capacity":"4.1 Litres (Serves 3-4 People)","Power":"1400 Watts Rapid Air Technology","Presets":"7 Pre-set Menus + Touchscreen Display","DishwasherSafe":"QuickClean Basket with Non-Stick Coating","Warranty":"2 Years Philips India Warranty"}'::jsonb,
+    32,
+    'In Stock',
+    true,
+    true,
+    true,
+    ARRAY['Air Fryer', 'Healthy Cooking', '90% Less Oil', 'Kitchen Essential']::TEXT[],
+    'The single best kitchen appliance upgrade for modern health-conscious households in India.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000035',
+    'Xiaomi Robot Vacuum-Mop 2 Pro (LDS Laser Navigation, 3000Pa Suction)',
+    'Home Appliances',
+    'State-of-the-art autonomous floor cleaning engineered for Indian homes. Features LDS laser radar mapping, 10,000 vibrations/min high-frequency sonic mopping for stubborn stains, 3000Pa powerful suction, and multi-floor mapping via Mi Home app.',
+    24999.00,
+    39999.00,
+    38,
+    'https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&q=80',
+    '["https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&q=80"]'::jsonb,
+    4.70,
+    1140,
+    '{"SuctionPower":"3000Pa High-Power Brushless Motor","Mopping":"Full-coverage High-frequency Sonic Vibration","Navigation":"Next-Gen LDS Laser Sensor","Battery":"5200mAh (Cleans over 2000 sq. ft on one charge)","App":"Mi Home App (Alexa & Google Assistant Compatible)","Warranty":"1 Year Manufacturer Onsite Warranty"}'::jsonb,
+    12,
+    'In Stock',
+    true,
+    true,
+    false,
+    ARRAY['Robot Vacuum', 'Sonic Mopping', 'LDS Navigation', 'Smart Home']::TEXT[],
+    'A transformative time-saver for busy professionals dealing with Indian dust and daily floor maintenance.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000036',
+    'Kent Grand Plus RO+UV+UF+TDS Mineral Water Purifier (9L Storage)',
+    'Home Appliances',
+    'India’s most trusted mineral RO water purifier. Multi-stage purification process of RO+UV+UF+TDS Control retains essential natural minerals. In-tank UV disinfection ensures drinking water stays 100% pure and bacteria-free round the clock.',
+    14999.00,
+    20500.00,
+    27,
+    'https://images.unsplash.com/photo-1584992236310-6edddc08acff?w=800&q=80',
+    '["https://images.unsplash.com/photo-1584992236310-6edddc08acff?w=800&q=80"]'::jsonb,
+    4.70,
+    5200,
+    '{"PurificationCapacity":"20 Litres per Hour","StorageCapacity":"9 Litres Tank with Level Indicator","Technology":"RO + UV + UF + Alkaline TDS Control","InletWaterTDS":"Purifies borewell, municipal, and tanker water up to 2000 ppm","Warranty":"1 Year Warranty + 3 Years Free Service Amc"}'::jsonb,
+    22,
+    'In Stock',
+    true,
+    true,
+    true,
+    ARRAY['Water Purifier', 'RO+UV+UF', 'TDS Controller', 'Healthy Living']::TEXT[],
+    'Vital health investment engineered specifically to purify diverse Indian groundwater and municipal water sources.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000037',
+    'Morphy Richards 1.8L Stainless Steel Electric Kettle (1500W, Cool-Touch Handle)',
+    'Home Appliances',
+    'Rapid-boil stainless steel electric kettle. Boils 1.8 litres of water in under 3 minutes for morning chai, green tea, instant noodles, and soup. Equipped with automatic boil-dry cut-off and 360-degree cordless swivel base.',
+    1299.00,
+    2499.00,
+    48,
+    'https://images.unsplash.com/photo-1594213114663-ddf4f24cf242?w=800&q=80',
+    '["https://images.unsplash.com/photo-1594213114663-ddf4f24cf242?w=800&q=80"]'::jsonb,
+    4.60,
+    3890,
+    '{"Capacity":"1.8 Litres","Power":"1500 Watts Concealed Heating Element","Safety":"Auto Shut-Off, Dry Boil Protection","Body":"Food-Grade SS304 Stainless Steel","Warranty":"2 Years Manufacturer Warranty"}'::jsonb,
+    70,
+    'In Stock',
+    true,
+    false,
+    true,
+    ARRAY['Under ₹1,500', 'Electric Kettle', 'Stainless Steel', 'Fast Boil']::TEXT[],
+    'Durable, high-wattage morning convenience for hostel students and families alike.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000038',
+    'Havells Glaze 750W 3-Jar Mixer Grinder (100% Copper Motor, SS304 Jars)',
+    'Home Appliances',
+    'Heavy-duty 750W mixer grinder built to withstand demanding Indian kitchen grinding—from fibrous coconut chutney to rock-hard turmeric roots and smooth dosa batter. Features 3 food-grade stainless steel jars with flow breakers.',
+    2899.00,
+    5195.00,
+    44,
+    'https://images.unsplash.com/photo-1574269909862-7e1d70bb8078?w=800&q=80',
+    '["https://images.unsplash.com/photo-1574269909862-7e1d70bb8078?w=800&q=80"]'::jsonb,
+    4.50,
+    2800,
+    '{"Motor":"750 Watts 100% Copper Winding Motor","Jars":"1.5L Wet Jar + 1.0L Dry Grinding + 0.5L Chutney Jar","Speed":"3 Speed Settings with Incher Pulse Function","Protection":"Air Channel Ventilation & Overload Thermal Protector","Warranty":"2 Years Comprehensive + 5 Years Motor Warranty"}'::jsonb,
+    40,
+    'In Stock',
+    true,
+    false,
+    false,
+    ARRAY['750W Copper Motor', 'Mixer Grinder', '3 SS Jars', 'Under ₹3,000']::TEXT[],
+    'The quintessential Indian kitchen grinder engineered for long motor life and fine spice texture.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000039',
+    'Bajaj New Shakti Neo 15L Vertical Storage Water Geyser (Titanium Armour)',
+    'Home Appliances',
+    'Energy-efficient 5-star BEE rated storage water heater. Features Titanium Armour glass-lined inner tank technology to resist corrosion from hard water, swirling heat technology for 20% more hot water, and high pressure capability for high-rise apartments.',
+    5899.00,
+    9990.00,
+    41,
+    'https://images.unsplash.com/photo-1584992236310-6edddc08acff?w=800&q=80',
+    '["https://images.unsplash.com/photo-1584992236310-6edddc08acff?w=800&q=80"]'::jsonb,
+    4.50,
+    1940,
+    '{"Capacity":"15 Litres Storage","EnergyRating":"BEE 5-Star Certified Power Saving","Tank":"Titanium Armour Technology with Magnesium Anode Rod","Pressure":"8 Bar Pressure (Suitable for High-Rise Apartments)","Warranty":"2 Years on Product, 5 Years on Tank"}'::jsonb,
+    18,
+    'In Stock',
+    true,
+    false,
+    false,
+    ARRAY['Water Geyser', '5-Star Energy', '15L Storage', 'Hard Water Proof']::TEXT[],
+    'Reliable winter bath heating solution resistant to scale and mineral buildup in Indian hard water.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000040',
+    'Royal Heritage Men Embroidered Raw Silk Kurta Set (Ivory & Gold)',
+    'Fashion',
+    'Artisanal hand-embroidered raw silk kurta with matching churidar pajamas. Detailed with delicate zari thread work around the mandarin collar and cuffs for festive weddings and celebrations.',
+    5499.00,
+    7999.00,
+    31,
+    'https://images.unsplash.com/photo-1617137984095-74e4e5e3613f?w=800&q=80',
+    '["https://images.unsplash.com/photo-1617137984095-74e4e5e3613f?w=800&q=80"]'::jsonb,
+    4.80,
+    312,
+    '{"Fabric":"100% Hand-Spun Raw Tussar Silk","Embroidery":"Zari Thread Hand Work","SetContents":"1 Long Kurta + 1 Churidar Pant","Fit":"Tailored Regular Comfort Fit","WashCare":"Dry Clean Only"}'::jsonb,
+    18,
+    'In Stock',
+    true,
+    true,
+    true,
+    ARRAY['Festive Ethnic', 'Pure Raw Silk', 'Wedding Collection']::TEXT[],
+    'Regal silhouette with breathable pure silk drape that stands out at traditional Indian ceremonies.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000041',
+    'Linen Club Pure Breathable Linen Casual Shirt (Sage Olive)',
+    'Fashion',
+    '100% pure European flax certified linen shirt. Naturally temperature-regulating for Indian summers with mother-of-pearl buttons and soft-washed garment finish.',
+    2299.00,
+    3499.00,
+    34,
+    'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=800&q=80',
+    '["https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=800&q=80"]'::jsonb,
+    4.60,
+    890,
+    '{"Material":"100% Pure European Flax Linen","Collar":"Cutaway Collar","Sleeves":"Full Sleeves with Roll-Up Tabs","Fit":"Slim Contemporary Fit","WashCare":"Machine Wash Gentle / Line Dry in Shade"}'::jsonb,
+    32,
+    'In Stock',
+    true,
+    false,
+    true,
+    ARRAY['Pure Linen', 'Summer Wear', 'Casual Luxury']::TEXT[],
+    'A breathable wardrobe essential that keeps you cool during hot Indian summers.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000042',
+    'Anouk Pure Cotton Printed A-Line Kurti with Dupatta',
+    'Fashion',
+    'Charming block-printed pure cambric cotton kurti featuring ethnic floral motifs, sweetheart neckline, 3/4th sleeves, and matching mulmul cotton printed dupatta.',
+    1299.00,
+    2499.00,
+    48,
+    'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=800&q=80',
+    '["https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=800&q=80"]'::jsonb,
+    4.70,
+    1650,
+    '{"Fabric":"100% Cambric 60s Cotton","Pattern":"Hand-Screen Block Floral Prints","Length":"Calf Length A-Line Cut","WashCare":"Color-Fast Hand Wash in Cold Water"}'::jsonb,
+    45,
+    'In Stock',
+    true,
+    true,
+    false,
+    ARRAY['Ethnic Wear', 'Pure Cotton', 'Office Wear', 'Under ₹1,500']::TEXT[],
+    'Graceful daily office and campus ethnic wear providing pure cotton comfort all day.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000043',
+    'Vintage Heavyweight 240 GSM Oversized Cotton T-Shirt',
+    'Fashion',
+    'Structured 240 GSM combed cotton drop-shoulder streetwear tee with ribbed lycra neck collar that refuses to sag after washing.',
+    799.00,
+    1499.00,
+    47,
+    'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800&q=80',
+    '["https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800&q=80"]'::jsonb,
+    4.50,
+    2210,
+    '{"Fabric":"100% Super-Combed Bio-Washed Cotton","Density":"240 GSM Heavyweight French Terry","Fit":"Oversized Boxy Streetwear Silhouette","Neck":"Double-Stitched Ribbed Crewneck"}'::jsonb,
+    68,
+    'In Stock',
+    true,
+    false,
+    true,
+    ARRAY['Streetwear', '240 GSM Heavyweight', 'Under ₹1,000']::TEXT[],
+    'Durable heavyweight cotton that gives the trendy relaxed drop-shoulder aesthetic without being see-through.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000044',
+    'Pack of 3 Breathable Bamboo Fibre Ankle Socks',
+    'Fashion',
+    'Hypoallergenic socks crafted from organic bamboo viscose with natural anti-odor and sweat-wicking properties.',
+    399.00,
+    799.00,
+    50,
+    'https://images.unsplash.com/photo-1586350977771-b3b0abd50c82?w=800&q=80',
+    '["https://images.unsplash.com/photo-1586350977771-b3b0abd50c82?w=800&q=80"]'::jsonb,
+    4.80,
+    1450,
+    '{"Material":"80% Bamboo Viscose, 18% Polyamide, 2% Elastane","Type":"Low-Cut Ankle Socks with Silicone Heel Grip","Features":"Natural Antibacterial, Thermoregulating, Seamless Toe"}'::jsonb,
+    110,
+    'In Stock',
+    true,
+    false,
+    false,
+    ARRAY['Under ₹500', 'Bamboo Fiber', 'Anti-Odor', 'Daily Essential']::TEXT[],
+    'Softest daily ankle socks that prevent foot odor even during long hours in humid weather.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000045',
+    'FabIndia Silk Blend Festive Nehru Jacket (Olive Gold, Mandarin Collar)',
+    'Fashion',
+    'Classic handcrafted sleeveless Nehru jacket tailored in silk-cotton woven fabric with textured sheen, antique brass buttons, and three welt pockets.',
+    3499.00,
+    4999.00,
+    30,
+    'https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=800&q=80',
+    '["https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=800&q=80"]'::jsonb,
+    4.70,
+    540,
+    '{"Fabric":"60% Silk, 40% Cotton Weave","Style":"Sleeveless Bandhgala with Mandarin Collar","Closure":"Front Button Placket with Brass Metal Buttons","WashCare":"Dry Clean Only"}'::jsonb,
+    20,
+    'In Stock',
+    true,
+    true,
+    false,
+    ARRAY['Nehru Jacket', 'FabIndia', 'Festive Layering', 'Silk Blend']::TEXT[],
+    'Instant festive elevator for any plain kurta or formal shirt.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000046',
+    'Levi''s 511 Slim Fit Stretch Dark Denim Jeans',
+    'Fashion',
+    'The iconic modern slim cut denim with room to move. Crafted from premium stretch cotton denim that maintains its deep indigo shape wash after wash.',
+    2699.00,
+    3999.00,
+    33,
+    'https://images.unsplash.com/photo-1542272604-780c96856592?w=800&q=80',
+    '["https://images.unsplash.com/photo-1542272604-780c96856592?w=800&q=80"]'::jsonb,
+    4.70,
+    3800,
+    '{"Fit":"511 Slim Fit (Sits below waist, slim from hip to ankle)","Fabric":"98% Cotton, 2% Elastane Stretch Denim","Features":"Classic 5-pocket styling with arcuate stitch on rear pockets"}'::jsonb,
+    44,
+    'In Stock',
+    true,
+    false,
+    true,
+    ARRAY['Levi''s', 'Stretch Denim', 'Slim Fit', 'Wardrobe Classic']::TEXT[],
+    'The quintessential rugged denim staple that pairs effortlessly with sneakers, t-shirts, and casual blazers.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000047',
+    'AeroForm Ergonomic High-Back Mesh Desk Chair',
+    'Home & Living',
+    'Work-from-home ergonomic office chair featuring Korean breathable mesh, dynamic self-adjusting lumbar support, 3D armrests, and Class-4 heavy-duty gas lift.',
+    16499.00,
+    22000.00,
+    25,
+    'https://images.unsplash.com/photo-1580481077195-c3f8864f51c4?w=800&q=80',
+    '["https://images.unsplash.com/photo-1580481077195-c3f8864f51c4?w=800&q=80"]'::jsonb,
+    4.80,
+    654,
+    '{"Mesh":"Imported Breathable High-Tension Korean Mesh","Mechanism":"Multi-lock Synchro Tilt Mechanism (90° to 135°)","Armrests":"3D Height, Angle and Depth Adjustable","GasLift":"BIFMA Certified Class 4 Hydraulic Cylinder","Warranty":"3 Years Comprehensive Warranty"}'::jsonb,
+    22,
+    'In Stock',
+    true,
+    true,
+    false,
+    ARRAY['Ergonomics', 'WFH Essential', 'Lumbar Support']::TEXT[],
+    'Eliminates lower back ache during 10-hour coding and studying marathons.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000048',
+    'Handcrafted Brass Diya & Essential Oil Diffuser Set',
+    'Home & Living',
+    'Traditional solid bell-metal brass oil lamp paired with an integrated top cup for pure sandalwood and camphor essential oils.',
+    1499.00,
+    2499.00,
+    40,
+    'https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?w=800&q=80',
+    '["https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?w=800&q=80"]'::jsonb,
+    4.90,
+    420,
+    '{"Material":"100% Solid Pure Bell-Metal Brass","Finish":"Hand-Polished Antique Golden Gloss","Includes":"Diya Lamp + 15ml Pure Mysore Sandalwood Oil"}'::jsonb,
+    35,
+    'In Stock',
+    true,
+    false,
+    true,
+    ARRAY['Handcrafted', 'Festive Gifting', 'Pure Brass', 'Under ₹1,500']::TEXT[],
+    'Exquisite housewarming and Diwali gifting piece that spreads authentic soothing fragrances.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000049',
+    'Jaipur Block-Printed 300 TC Cotton King Bedsheet with Pillow Covers',
+    'Home & Living',
+    'Authentic Sanganeri block-printed king bedsheet using AZO-free skin-friendly natural dyes on long-staple 300 thread count percale cotton.',
+    1899.00,
+    2999.00,
+    37,
+    'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=800&q=80',
+    '["https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=800&q=80"]'::jsonb,
+    4.70,
+    810,
+    '{"Dimensions":"King Size (108 x 108 inches / 274 x 274 cm)","ThreadCount":"300 TC Long-Staple Pure Cotton","PackageContents":"1 King Size Bedsheet + 2 Flapped Pillow Covers"}'::jsonb,
+    40,
+    'In Stock',
+    true,
+    true,
+    false,
+    ARRAY['King Size', '100% Cotton', 'Hand Block Printed']::TEXT[],
+    'Generous king size dimensions that tuck deeply into thick mattresses without slipping off.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000050',
+    'Smart Touch Sensor Rechargeable LED Bedside Lamp',
+    'Home & Living',
+    '3-level warm white touch dimming with RGB color cycling. Powered by a built-in 1800mAh rechargeable battery charged over USB-C.',
+    699.00,
+    1299.00,
+    46,
+    'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=800&q=80',
+    '["https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=800&q=80"]'::jsonb,
+    4.60,
+    1540,
+    '{"Brightness":"3 Warm White Levels (Low, Medium, Reading High) + RGB Cycle","Battery":"1800mAh Li-ion (Up to 14 Hours Runtime on Low)","Charging":"USB Type-C Fast Input (Cable included)"}'::jsonb,
+    65,
+    'In Stock',
+    true,
+    false,
+    true,
+    ARRAY['Under ₹1,000', 'Touch Sensor', 'LED Lamp', 'Rechargeable']::TEXT[],
+    'Gentle on sleepy eyes and portable enough to carry around the house during power cuts.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000051',
+    'Nordic Ceramic Coffee Mug with Natural Bamboo Coaster & Gold Spoon',
+    'Home & Living',
+    'Minimalist matte-glazed ceramic coffee mug (380ml) with natural organic bamboo lid-cum-coaster and food-grade stainless steel gold stirring spoon.',
+    499.00,
+    999.00,
+    50,
+    'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&q=80',
+    '["https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&q=80"]'::jsonb,
+    4.70,
+    940,
+    '{"Capacity":"380 ml Comfort Volume","Material":"High-Fired Food Grade Ceramic (Microwave Safe)","Accessories":"Natural Bamboo Coaster Lid + Gold Plated Spoon"}'::jsonb,
+    80,
+    'In Stock',
+    true,
+    false,
+    false,
+    ARRAY['Under ₹500', 'Coffee Mug', 'Gifting', 'Ceramic']::TEXT[],
+    'Aesthetic desk upgrade for hot filter coffee and green tea breaks.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000052',
+    'Wakefit Orthopedic Memory Foam Dual-Comfort Mattress (Queen, 78x60x6)',
+    'Home & Living',
+    'Dual-comfort reversible orthopedic mattress. Features a medium-soft breathable memory foam side for pressure relief and a medium-firm high-resilience foam side for optimum spine alignment.',
+    7499.00,
+    12999.00,
+    42,
+    'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=800&q=80',
+    '["https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=800&q=80"]'::jsonb,
+    4.80,
+    14200,
+    '{"Dimensions":"Queen Size (78 x 60 x 6 inches)","FoamLayers":"Next-Gen Memory Foam + High Resilience HR Base Foam","Cover":"High GSM Spun Knitted Breathable Removable Zipper Cover","Warranty":"10 Years Manufacturer Warranty"}'::jsonb,
+    15,
+    'In Stock',
+    true,
+    true,
+    false,
+    ARRAY['Wakefit Mattress', 'Orthopedic Memory Foam', 'Dual Comfort']::TEXT[],
+    'India’s highest-rated orthopedic mattress delivering spine relief and restorative sleep posture.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000053',
+    'Solimo 100% Cotton Blackout Grommet Curtains (Set of 2, 7 Feet, Charcoal)',
+    'Home & Living',
+    'Heavy 3-layer weave thermal blackout room curtains. Blocks 95% of harsh afternoon sunlight, insulates against outside summer heat, and dampens street noise for uninterrupted sleep.',
+    1299.00,
+    2299.00,
+    43,
+    'https://images.unsplash.com/photo-1513694203232-719a280e022f?w=800&q=80',
+    '["https://images.unsplash.com/photo-1513694203232-719a280e022f?w=800&q=80"]'::jsonb,
+    4.50,
+    3100,
+    '{"Dimensions":"Set of 2 (Each 4 Feet Wide x 7 Feet Drop / Door Height)","Fabric":"Triple-Weave Heavyweight Polyester-Cotton Blend","Grommets":"8 Stainless Steel Eyelets per Panel"}'::jsonb,
+    50,
+    'In Stock',
+    true,
+    false,
+    true,
+    ARRAY['Blackout Curtains', 'Under ₹1,500', 'Thermal Insulated', 'Set of 2']::TEXT[],
+    'Essential bedroom investment to block blinding morning sun and lower room temperature during hot months.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000054',
+    'Karcher K2 Universal High-Pressure Compact Car Washer (110 Bar, 1400W)',
+    'Car Care',
+    'German-engineered 110-bar pressure washer with dirt blaster rotating nozzle for stubborn wheel well mud, bug splatters, and driveway cleaning with 80% water savings.',
+    8999.00,
+    12999.00,
+    31,
+    'https://images.unsplash.com/photo-1607860108855-64acf2078ed9?w=800&q=80',
+    '["https://images.unsplash.com/photo-1607860108855-64acf2078ed9?w=800&q=80"]'::jsonb,
+    4.80,
+    940,
+    '{"Pressure":"110 Bar Max Operating Pressure","Power":"1400 Watts Air-Cooled Universal Motor","FlowRate":"360 Litres per Hour Max","Hose":"3-Meter High Pressure Hose with Quick Connect","Warranty":"1 Year Karcher India Warranty"}'::jsonb,
+    16,
+    'In Stock',
+    true,
+    true,
+    false,
+    ARRAY['High Pressure Washer', 'German Engineering', '110 Bar']::TEXT[],
+    'Saves hundreds of Rupees per month on commercial car wash bills while delivering showroom water pressure at home.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000055',
+    'Bergmann Typhoon Heavy Duty 12V Digital Car Tyre Inflator (150 PSI)',
+    'Car Care',
+    '100% pure copper direct-drive motor that inflates a standard R15 car tyre from 0 to 35 PSI in under 2.5 minutes. Features auto-shutoff at preset target pressure.',
+    2199.00,
+    3499.00,
+    37,
+    'https://images.unsplash.com/photo-1486006920555-c77dce18193b?w=800&q=80',
+    '["https://images.unsplash.com/photo-1486006920555-c77dce18193b?w=800&q=80"]'::jsonb,
+    4.70,
+    3120,
+    '{"Motor":"100% Pure Heavy-Duty Copper Core Motor","Speed":"0 to 35 PSI in 2.5 Minutes","Display":"Backlit Digital Pressure Gauge in PSI, BAR, KPA","Features":"Auto Cut-Off + Emergency Bright LED Flashlight","Warranty":"1 Year Replacement Warranty"}'::jsonb,
+    42,
+    'In Stock',
+    true,
+    true,
+    true,
+    ARRAY['Tyre Inflator', 'Auto Shut-Off', '100% Copper', 'Highway Emergency']::TEXT[],
+    'Highway emergency essential that prevents stranding during punctures or slow air leaks on Indian highways.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000056',
+    'WaveX 3-in-1 Ceramic Coating & Hydrophobic Paint Sealant (500ml)',
+    'Car Care',
+    'SiO2 ceramic spray sealant delivering extreme water beading, mirror candy gloss, and UV oxidation protection that lasts up to 6 months per coat.',
+    1299.00,
+    1999.00,
+    35,
+    'https://images.unsplash.com/photo-1601362840469-51e4d8d58785?w=800&q=80',
+    '["https://images.unsplash.com/photo-1601362840469-51e4d8d58785?w=800&q=80"]'::jsonb,
+    4.60,
+    1840,
+    '{"Volume":"500ml Spray Bottle with Mist Trigger","Formulation":"Advanced SiO2 Polymer Hybrid Ceramic","Durability":"Up to 6 Months Hydrophobic Protection per application"}'::jsonb,
+    38,
+    'In Stock',
+    true,
+    false,
+    true,
+    ARRAY['Ceramic Coating', 'Hydrophobic Beading', 'Under ₹1,500']::TEXT[],
+    'Effortless spray-on wipe-off ceramic protection that stops acidic bird droppings and monsoon rain spots from etching car paint.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000057',
+    'SoftSpun 800 GSM Dual-Plush Microfiber Drying Towels (Set of 2, 40x40cm)',
+    'Car Care',
+    'Ultra-plush 800 GSM density with rounded silk edge trim. Absorbs up to 10x its weight in water to dry cars with zero swirl marks or lint residue.',
+    499.00,
+    999.00,
+    50,
+    'https://images.unsplash.com/photo-1563720223185-11003d516935?w=800&q=80',
+    '["https://images.unsplash.com/photo-1563720223185-11003d516935?w=800&q=80"]'::jsonb,
+    4.90,
+    5200,
+    '{"GSM":"800 GSM Ultra-Dense Dual Plush Fiber","Dimensions":"40 x 40 cm (Set of 2 Towels: Yellow & Grey)","Edge":"Scratch-Proof Silk Banded Edging"}'::jsonb,
+    110,
+    'In Stock',
+    true,
+    true,
+    true,
+    ARRAY['Best Under ₹500', '800 GSM Microfiber', 'Zero Swirls', 'Top Rated']::TEXT[],
+    'Must-have drying towel that guarantees swirl-free and streak-free paintwork.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000058',
+    '3M Car Dashboard Cleaner & UV Protection Polish (250ml)',
+    'Car Care',
+    'Restores dry, sun-faded vinyl, plastic, and rubber dashboard trims to a rich, non-greasy satin factory finish with built-in UV blockers.',
+    349.00,
+    599.00,
+    42,
+    'https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?w=800&q=80',
+    '["https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?w=800&q=80"]'::jsonb,
+    4.70,
+    4120,
+    '{"Volume":"250ml Ergonomic Spray Bottle","Application":"Dashboard, Door Panels, Center Console, Rubber Trims","Finish":"Non-Oily, Anti-Static Dust Repelling Satin Glow"}'::jsonb,
+    95,
+    'In Stock',
+    true,
+    false,
+    false,
+    ARRAY['Under ₹500', '3M Polish', 'UV Protection', 'Interior Detailing']::TEXT[],
+    'Reliable 3M formulation that shields dashboards against harsh Indian sun cracking without attracting dust.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000059',
+    'Godrej aer O Luxury Hanging Car Fragrance Pod (Cool Surf Blue, 10g)',
+    'Car Care',
+    'Aesthetic hanging fragrance membrane pod delivering up to 60 days of refreshing ocean breeze scent. Completely spill-proof and leak-proof.',
+    299.00,
+    399.00,
+    25,
+    'https://images.unsplash.com/photo-1508974239320-0a029497e820?w=800&q=80',
+    '["https://images.unsplash.com/photo-1508974239320-0a029497e820?w=800&q=80"]'::jsonb,
+    4.60,
+    6800,
+    '{"Lifespan":"Up to 60 Days Continuous Release","Mechanism":"Spill-Proof Diffusion Membrane with Hanging Cord","Aroma":"Cool Surf Blue Ocean Notes"}'::jsonb,
+    140,
+    'In Stock',
+    true,
+    false,
+    false,
+    ARRAY['Under ₹300', 'Car Freshener', 'Spill-Proof', '60 Days']::TEXT[],
+    'Longest-lasting car freshener under ₹300 that never leaks onto dashboard trims.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000060',
+    'Turtle Wax Super Hard Shell Carnauba Liquid Car Wax (500ml)',
+    'Car Care',
+    'The legendary hard shell liquid car wax formula enriched with pure Brazilian Carnauba. Fills fine swirl marks, cleans light oxidation, and leaves a high-gloss protective shield that repels rain and road grime.',
+    649.00,
+    999.00,
+    35,
+    'https://images.unsplash.com/photo-1607860108855-64acf2078ed9?w=800&q=80',
+    '["https://images.unsplash.com/photo-1607860108855-64acf2078ed9?w=800&q=80"]'::jsonb,
+    4.80,
+    2950,
+    '{"Volume":"500ml Liquid Bottle","ActiveAgent":"Pure Brazilian Carnauba Wax + Clear Coat Polishing Resins","Durability":"Up to 12 Months Hard Shell Barrier Protection"}'::jsonb,
+    50,
+    'In Stock',
+    true,
+    false,
+    true,
+    ARRAY['Carnauba Wax', 'High Gloss', 'Under ₹1,000', 'Paint Protection']::TEXT[],
+    'Legendary paste-wax shine with the easy application speed of a liquid wax.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000061',
+    'Luminary Chrono Sapphire Automatic Watch',
+    'Electronics Accessories',
+    'Handcrafted luxury automatic chronograph with Japanese Miyota 24-jewel movement, scratch-resistant sapphire crystal glass, and genuine Italian Horween leather strap.',
+    38500.00,
+    45000.00,
+    14,
+    'https://images.unsplash.com/photo-1524805444758-089113d48a6d?w=800&q=80',
+    '["https://images.unsplash.com/photo-1524805444758-089113d48a6d?w=800&q=80"]'::jsonb,
+    4.90,
+    188,
+    '{"Movement":"Japanese 24-Jewel Automatic Self-Winding","CaseDiameter":"41mm 316L Stainless Steel","WaterResistance":"10 ATM (100 Meters)","Warranty":"3 Years International Warranty"}'::jsonb,
+    10,
+    'In Stock',
+    true,
+    true,
+    false,
+    ARRAY['Automatic Movement', 'Sapphire Glass', 'Luxury Watch']::TEXT[],
+    'Timeless horological craft that looks twice its price point.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000062',
+    'UrbanTraveller Water-Resistant Anti-Theft Laptop Backpack (30L)',
+    'Electronics Accessories',
+    'Engineered for tech commuters with hidden anti-theft zipper entry, dedicated padded sleeve fitting up to 16-inch laptops, integrated external USB charge port, and water-repellent Cordura fabric.',
+    2799.00,
+    4499.00,
+    38,
+    'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&q=80',
+    '["https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&q=80"]'::jsonb,
+    4.70,
+    1420,
+    '{"Capacity":"30 Litres Multi-Compartment Storage","LaptopFit":"Dedicated Padded Pocket for up to 16\" Laptops","Fabric":"900D Water-Repellent High-Density Oxford Polyester","Warranty":"1 Year Brand Replacement Warranty"}'::jsonb,
+    45,
+    'In Stock',
+    true,
+    false,
+    true,
+    ARRAY['Laptop Backpack', 'Anti-Theft', '30L Volume', 'Water Resistant']::TEXT[],
+    'Ergonomic weight distribution cushions heavy laptop loads on long metro commutes.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000063',
+    'Polarized Aviator Sunglasses with UV400 Protection (Gunmetal)',
+    'Electronics Accessories',
+    'Classic military-inspired aviator sunglasses featuring glare-cutting triacetate polarized lenses, lightweight stainless steel frame, and 100% UV400 blocking.',
+    1599.00,
+    2999.00,
+    47,
+    'https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=800&q=80',
+    '["https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=800&q=80"]'::jsonb,
+    4.60,
+    890,
+    '{"Lens":"Triacetate Cellulose (TAC) Polarized with Anti-Glare Coating","Protection":"100% UV400 Protection (UVA & UVB)","Frame":"Corrosion-Resistant Stainless Steel with Spring Hinges"}'::jsonb,
+    38,
+    'In Stock',
+    true,
+    false,
+    false,
+    ARRAY['Polarized', 'UV400', 'Aviator', 'Under ₹2,000']::TEXT[],
+    'Eliminates blinding asphalt glare during highway driving in Indian daylight.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000064',
+    'WildHorn Full-Grain Vegetable Tanned Leather RFID Wallet (Cognac Brown)',
+    'Electronics Accessories',
+    'Handcrafted slim bi-fold wallet made from 100% full-grain oil-pulled genuine leather. Features RFID-blocking lining to protect credit cards from digital theft.',
+    999.00,
+    1999.00,
+    50,
+    'https://images.unsplash.com/photo-1627123424574-724758594e93?w=800&q=80',
+    '["https://images.unsplash.com/photo-1627123424574-724758594e93?w=800&q=80"]'::jsonb,
+    4.70,
+    3200,
+    '{"Material":"100% Genuine Full-Grain Vegetable Tanned Cowhide Leather","Pockets":"8 Dedicated Card Slots + 2 Currency Compartments + Coin Pocket","Security":"Certified RFID Blocking 13.56 MHz Shielding"}'::jsonb,
+    60,
+    'In Stock',
+    true,
+    true,
+    true,
+    ARRAY['Full Grain Leather', 'RFID Protection', 'Under ₹1,000']::TEXT[],
+    'Ages into a rich golden patina over time; slim enough to never bulge in your front pocket.'
+  ),
+(
+    'a0000001-0000-0000-0000-000000000065',
+    'Sleek Aircraft-Aluminium Key Organizer & Multi-Tool',
+    'Electronics Accessories',
+    'Compact swiss-style key organizer holding up to 8 keys in silent alignment. Eliminates pocket jingling and thigh poking with built-in bottle opener.',
+    449.00,
+    899.00,
+    50,
+    'https://images.unsplash.com/photo-1582880790858-a5c92c3a50d2?w=800&q=80',
+    '["https://images.unsplash.com/photo-1582880790858-a5c92c3a50d2?w=800&q=80"]'::jsonb,
+    4.40,
+    1100,
+    '{"Material":"Aircraft Grade 6061-T6 Anodized Aluminium","Capacity":"Holds 2 to 8 Standard House / Office Keys","IntegratedTools":"Bottle Opener, Flathead Screwdriver, Carabiner Loop"}'::jsonb,
+    90,
+    'In Stock',
+    true,
+    false,
+    false,
+    ARRAY['Under ₹500', 'Key Organizer', 'EDC', 'Aircraft Aluminum']::TEXT[],
+    'Eliminates noisy key jingling and stops keys from scratching smartphone screens in pockets.'
+  )
+ON CONFLICT (id) DO UPDATE SET
+    name = EXCLUDED.name,
+    category = EXCLUDED.category,
+    description = EXCLUDED.description,
+    price = EXCLUDED.price,
+    original_price = EXCLUDED.original_price,
+    discount_percent = EXCLUDED.discount_percent,
+    image_url = EXCLUDED.image_url,
+    images = EXCLUDED.images,
+    rating = EXCLUDED.rating,
+    reviews_count = EXCLUDED.reviews_count,
+    specifications = EXCLUDED.specifications,
+    stock_quantity = EXCLUDED.stock_quantity,
+    availability = EXCLUDED.availability,
+    is_active = EXCLUDED.is_active,
+    is_featured = EXCLUDED.is_featured,
+    is_trending = EXCLUDED.is_trending,
+    tags = EXCLUDED.tags,
+    ai_verdict = EXCLUDED.ai_verdict;
+
+
+-- ==============================================================================
+-- SAMPLE INITIAL ORDERS & ORDER ITEMS FOR ADMIN DASHBOARD
+-- ==============================================================================
+INSERT INTO public.orders (
+    id, customer_name, customer_email, customer_phone, total_amount, order_status, shipping_address, payment_method, created_at
+) VALUES
+(
+    'b0000001-0000-0000-0000-000000000001',
+    'Vikramaditya Rathore',
+    'vikram.rathore@example.in',
+    '+91 98765 43210',
+    19999.00,
+    'processing',
+    '{"address":"Villa 14, Palm Meadows, Whitefield","city":"Bengaluru","state":"Karnataka","pincode":"560066"}'::jsonb,
+    'SIMULATED_DEMO_UPI',
+    NOW() - INTERVAL '4 hours'
+),
+(
+    'b0000001-0000-0000-0000-000000000002',
+    'Ananya Deshmukh',
+    'ananya.d@example.in',
+    '+91 98220 11223',
+    3298.00,
+    'delivered',
+    '{"address":"Flat 402, Sea Green Apts, Worli","city":"Mumbai","state":"Maharashtra","pincode":"400018"}'::jsonb,
+    'SIMULATED_DEMO_UPI',
+    NOW() - INTERVAL '28 hours'
+),
+(
+    'b0000001-0000-0000-0000-000000000003',
+    'Dr. Kabir Sen',
+    'dr.kabir@example.in',
+    '+91 94331 55667',
+    125000.00,
+    'shipped',
+    '{"address":"B-74, Salt Lake Sector 1","city":"Kolkata","state":"West Bengal","pincode":"700064"}'::jsonb,
+    'SIMULATED_DEMO_UPI',
+    NOW() - INTERVAL '52 hours'
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.order_items (
+    id, order_id, product_id, product_name, quantity, unit_price, subtotal
+) VALUES
+(
+    'c0000001-0000-0000-0000-000000000001',
+    'b0000001-0000-0000-0000-000000000001',
+    'a0000001-0000-0000-0000-000000000001',
+    'OnePlus Nord CE 4 5G (8GB RAM, 128GB Storage, Celadon Marble)',
+    1,
+    19999.00,
+    19999.00
+),
+(
+    'c0000001-0000-0000-0000-000000000002',
+    'b0000001-0000-0000-0000-000000000002',
+    'a0000001-0000-0000-0000-000000000018',
+    'EchoPulse True Wireless Earbuds with ANC',
+    1,
+    1899.00,
+    1899.00
+),
+(
+    'c0000001-0000-0000-0000-000000000003',
+    'b0000001-0000-0000-0000-000000000002',
+    'a0000001-0000-0000-0000-000000000059',
+    'WaveX 3-in-1 Ceramic Coating (500ml)',
+    1,
+    1299.00,
+    1299.00
+),
+(
+    'c0000001-0000-0000-0000-000000000004',
+    'b0000001-0000-0000-0000-000000000003',
+    'a0000001-0000-0000-0000-000000000009',
+    'TitanBook Pro M2 Creator Laptop (16GB/1TB)',
+    1,
+    125000.00,
+    125000.00
+)
+ON CONFLICT (id) DO NOTHING;

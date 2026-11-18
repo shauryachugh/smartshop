@@ -15,7 +15,7 @@ export default function Footer() {
     'Lucide React',
     'Netlify Functions',
     'Supabase Ready',
-    'Gemini AI Ready',
+    'ShopSmart AI Ready',
   ];
 
   return (
@@ -135,7 +135,7 @@ export default function Footer() {
               </li>
               <li className="flex items-center gap-2 text-emerald-400">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                <span>Gemini 3.5 AI Grounded</span>
+                <span>ShopSmart AI Engine Grounded</span>
               </li>
               <li className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-stone-500"></span>

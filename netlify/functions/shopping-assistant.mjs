@@ -201,7 +201,7 @@ function handleSemanticFallback(message, conversationHistory, products, catalogM
   // Scenario 0: External link / URL comparison inquiry
   if (query.includes('external') || query.includes('compare url') || query.includes('paste url') || query.includes('product link') || (query.includes('amazon') && query.includes('flipkart'))) {
     return {
-      reply: "You can use our dedicated **[Compare Any Product](/compare)** tool! Simply paste product URLs from Amazon India, Flipkart, Croma, Reliance Digital, or other stores, and our Gemini AI will analyze the live specifications, pros & cons, and determine the Value-For-Money champion in Indian Rupees (₹).",
+      reply: "You can use our dedicated **[Compare Any Product](/compare)** tool! Simply paste product URLs from Amazon India, Flipkart, Croma, Reliance Digital, or other stores, and our ShopSmart AI will analyze the live specifications, pros & cons, and determine the Value-For-Money champion in Indian Rupees (₹).",
       products: [],
       comparison: null,
       modelUsed: 'gemini-fallback-semantic',
@@ -437,7 +437,7 @@ export async function handler(event, context) {
             reply: `I recognized your external link from **${blockedSite}**. However, ${blockedSite} returned an automated anti-bot / verification challenge (${blockedReason}).\n\n` +
               `🔒 **Anti-Bot Compliance:** In accordance with web security guidelines, ShopSmart AI respects site protections and does not bypass CAPTCHA challenges.\n\n` +
               `⚠️ **No Unrelated Products Substituted:** We do not silently replace your link with an unrelated product from our catalogue.\n\n` +
-              `👉 **How to compare:** Please use our dedicated **[Compare Any Product Tool](/compare)** to enter the product details (name, price in ₹, specs) manually for an immediate, comprehensive Gemini AI comparison!`,
+              `👉 **How to compare:** Please use our dedicated **[Compare Any Product Tool](/compare)** to enter the product details (name, price in ₹, specs) manually for an immediate, comprehensive ShopSmart AI comparison!`,
             products: [],
             comparison: null,
             modelUsed: 'external-block-guard',
@@ -520,7 +520,7 @@ export async function handler(event, context) {
       const reply = `Here is a side-by-side comparison between your two external products:\n\n` +
         `• **${productA.name}** (${priceA}) [**${productA.sourceTag}**]\n` +
         `• **${productB.name}** (${priceB}) [**${productB.sourceTag}**]\n\n` +
-        `**Gemini AI Evaluation:**\n${compResult.executiveSummary}\n\n` +
+        `**ShopSmart AI Evaluation:**\n${compResult.executiveSummary}\n\n` +
         `🏆 **Value-For-Money Winner:** **${compResult.valueForMoneyVerdict?.winnerName || productA.name}** — ${compResult.valueForMoneyVerdict?.reason || ''}`;
 
       return {
@@ -554,7 +554,7 @@ export async function handler(event, context) {
           reply: `I recognized your external product link from **${blockedSite}** (${extUrl}).\n\n` +
             `🔒 **Anti-Bot Challenge Detected:** ${blockedSite} has active automated scraping / bot protection (${extractRes.reason || 'HTTP 403 / Challenge'}). In accordance with security standards, we do not bypass CAPTCHA challenges.\n\n` +
             `⚠️ **No Unrelated Products Substituted:** We do not silently replace your link with an unrelated product from our catalogue.\n\n` +
-            `👉 **How to compare:** Please use our dedicated **[Compare Any Product Tool](/compare)** and click **"Enter Details Manually"** to enter the product details (name, price in ₹, specs) for a complete Gemini AI comparison!`,
+            `👉 **How to compare:** Please use our dedicated **[Compare Any Product Tool](/compare)** and click **"Enter Details Manually"** to enter the product details (name, price in ₹, specs) for a complete ShopSmart AI comparison!`,
           products: [],
           comparison: null,
           modelUsed: 'external-block-guard',
@@ -682,7 +682,7 @@ export async function handler(event, context) {
     const reply = `Here is a side-by-side comparison between the external product from **${productA.sourceWebsite}** and our internal catalogue product:\n\n` +
       `• **${productA.name}** (${priceA}) [**${productA.sourceTag}**]\n` +
       `• **${productB.name}** (${priceB}) [**${productB.sourceTag}**]\n\n` +
-      `**Gemini AI Evaluation:**\n${compResult.executiveSummary}\n\n` +
+      `**ShopSmart AI Evaluation:**\n${compResult.executiveSummary}\n\n` +
       `🏆 **Value-For-Money Winner:** **${compResult.valueForMoneyVerdict?.winnerName || productA.name}** — ${compResult.valueForMoneyVerdict?.reason || ''}`;
 
     return {

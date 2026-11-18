@@ -1,5 +1,5 @@
 -- ==============================================================================
--- SHOPSMART AI — COMPLETE SUPABASE DATABASE SCHEMA (PHASE 3)
+-- SHOPSMART AI — COMPLETE SUPABASE DATABASE SCHEMA MIGRATION
 -- ==============================================================================
 -- This script sets up all required tables, constraints, indexes, Row Level
 -- Security (RLS) policies, and authentication triggers for ShopSmart AI.
@@ -8,8 +8,9 @@
 -- https://supabase.com/dashboard/project/unectsmgytpitjaxdgru/sql
 -- ==============================================================================
 
--- 1. Enable UUID Extension
+-- 1. Enable Cryptographic & UUID Extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- ==============================================================================
 -- TABLE 1: PRODUCTS
@@ -20,8 +21,8 @@ CREATE TABLE IF NOT EXISTS public.products (
     category TEXT NOT NULL,
     description TEXT,
     price NUMERIC(12, 2) NOT NULL CHECK (price >= 0),
-    original_price NUMERIC(12, 2) CHECK (original_price >= price),
-    discount_percent INTEGER DEFAULT 0,
+    original_price NUMERIC(12, 2) CHECK (original_price IS NULL OR original_price >= price),
+    discount_percent INTEGER DEFAULT 0 CHECK (discount_percent >= 0 AND discount_percent <= 100),
     image_url TEXT NOT NULL,
     images JSONB DEFAULT '[]'::jsonb,
     rating NUMERIC(3, 2) DEFAULT 4.5 CHECK (rating >= 0 AND rating <= 5),
@@ -34,16 +35,18 @@ CREATE TABLE IF NOT EXISTS public.products (
     is_trending BOOLEAN DEFAULT false,
     tags TEXT[] DEFAULT ARRAY[]::TEXT[],
     ai_verdict TEXT,
-    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
--- Indexes for lightning fast searching and filtering
+-- Indexes for fast searching, filtering, and sorting
 CREATE INDEX IF NOT EXISTS idx_products_category ON public.products (category);
 CREATE INDEX IF NOT EXISTS idx_products_price ON public.products (price);
 CREATE INDEX IF NOT EXISTS idx_products_is_active ON public.products (is_active);
 CREATE INDEX IF NOT EXISTS idx_products_featured ON public.products (is_featured) WHERE is_featured = true;
 CREATE INDEX IF NOT EXISTS idx_products_trending ON public.products (is_trending) WHERE is_trending = true;
-CREATE INDEX IF NOT EXISTS idx_products_name_trgm ON public.products USING gin (to_tsvector('english', name || ' ' || COALESCE(description, '')));
+CREATE INDEX IF NOT EXISTS idx_products_created_at ON public.products (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_products_search ON public.products USING gin (to_tsvector('english', name || ' ' || COALESCE(description, '')));
 
 
 -- ==============================================================================
@@ -60,6 +63,9 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS idx_profiles_role ON public.profiles (role);
+
+
 -- ==============================================================================
 -- TABLE 3: WISHLISTS
 -- ==============================================================================
@@ -72,6 +78,7 @@ CREATE TABLE IF NOT EXISTS public.wishlists (
 );
 
 CREATE INDEX IF NOT EXISTS idx_wishlists_user_id ON public.wishlists (user_id);
+CREATE INDEX IF NOT EXISTS idx_wishlists_product_id ON public.wishlists (product_id);
 
 
 -- ==============================================================================
@@ -90,26 +97,29 @@ CREATE TABLE IF NOT EXISTS public.enquiries (
 );
 
 CREATE INDEX IF NOT EXISTS idx_enquiries_user_id ON public.enquiries (user_id);
+CREATE INDEX IF NOT EXISTS idx_enquiries_status ON public.enquiries (status);
 CREATE INDEX IF NOT EXISTS idx_enquiries_created_at ON public.enquiries (created_at DESC);
 
 
 -- ==============================================================================
--- TABLE 5: ORDERS (Simulated E-Commerce Checkout)
+-- TABLE 5: ORDERS (E-Commerce Checkout)
 -- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-    total_amount NUMERIC(12, 2) NOT NULL CHECK (total_amount >= 0),
-    order_status TEXT DEFAULT 'confirmed' CHECK (order_status IN ('pending', 'confirmed', 'shipped', 'delivered', 'cancelled')),
     customer_name TEXT NOT NULL,
     customer_email TEXT NOT NULL,
     customer_phone TEXT,
     shipping_address JSONB NOT NULL DEFAULT '{}'::jsonb,
-    payment_method TEXT DEFAULT 'SIMULATED_DEMO_PAYMENT',
-    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+    total_amount NUMERIC(12, 2) NOT NULL CHECK (total_amount >= 0),
+    order_status TEXT DEFAULT 'confirmed' CHECK (lower(order_status) IN ('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled')),
+    payment_method TEXT DEFAULT 'SIMULATED_DEMO_UPI',
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_orders_user_id ON public.orders (user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON public.orders (order_status);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON public.orders (created_at DESC);
 
 
@@ -128,21 +138,59 @@ CREATE TABLE IF NOT EXISTS public.order_items (
 );
 
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON public.order_items (order_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_product_id ON public.order_items (product_id);
 
 
 -- ==============================================================================
--- AUTOMATION TRIGGER: AUTO-CREATE PROFILE ON USER SIGNUP
+-- HELPER FUNCTIONS & TRIGGERS
 -- ==============================================================================
+
+-- 1. Helper function: Check if current session user is an admin
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+    -- Check if authenticated user has admin role in public.profiles
+    IF EXISTS (
+        SELECT 1 FROM public.profiles
+        WHERE id = auth.uid() AND role IN ('admin', 'manager')
+    ) THEN
+        RETURN true;
+    END IF;
+
+    -- Check user metadata in JWT token
+    IF (auth.jwt() -> 'user_metadata' ->> 'role') IN ('admin', 'manager') THEN
+        RETURN true;
+    END IF;
+
+    -- Allow service_role key or postgres superuser
+    IF auth.jwt() ->> 'role' = 'service_role' OR current_user = 'postgres' THEN
+        RETURN true;
+    END IF;
+
+    RETURN false;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
+
+-- 2. Helper function: Check if an order exists (bypasses RLS to allow guest checkout items insertion)
+CREATE OR REPLACE FUNCTION public.order_exists(p_order_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN EXISTS (SELECT 1 FROM public.orders WHERE id = p_order_id);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
+
+-- 3. Automation Trigger: Auto-create profile on user signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-    INSERT INTO public.profiles (id, full_name, email, phone, avatar_url)
+    INSERT INTO public.profiles (id, full_name, email, phone, avatar_url, role)
     VALUES (
         NEW.id,
         COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.email),
         NEW.email,
         NEW.raw_user_meta_data->>'phone',
-        NEW.raw_user_meta_data->>'avatar_url'
+        NEW.raw_user_meta_data->>'avatar_url',
+        COALESCE(NEW.raw_user_meta_data->>'role', 'customer')
     )
     ON CONFLICT (id) DO UPDATE SET
         full_name = EXCLUDED.full_name,
@@ -152,31 +200,22 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Re-create trigger safely
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT OR UPDATE ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
-
--- ------------------------------------------------------------------------------
--- SECURITY TRIGGER: PREVENT SELF-ESCALATION OF USER ROLES
--- ------------------------------------------------------------------------------
--- Ensures regular users cannot grant themselves 'admin' or 'manager' roles
+-- 4. Security Trigger: Prevent regular users from granting themselves admin roles
 CREATE OR REPLACE FUNCTION public.prevent_role_escalation()
 RETURNS TRIGGER AS $$
 BEGIN
     IF NEW.role IS DISTINCT FROM OLD.role THEN
-        -- Only allow if caller is already an admin or service_role
         IF NOT (
-            EXISTS (
-                SELECT 1 FROM public.profiles 
-                WHERE id = auth.uid() AND role = 'admin'
-            )
+            public.is_admin()
             OR auth.jwt() ->> 'role' = 'service_role'
             OR current_user = 'postgres'
         ) THEN
-            RAISE EXCEPTION 'Unauthorized: Standard users cannot alter their administrative privileges.';
+            RAISE EXCEPTION 'Unauthorized: Standard users cannot alter administrative privileges.';
         END IF;
     END IF;
     RETURN NEW;
@@ -188,19 +227,20 @@ CREATE TRIGGER trg_prevent_role_escalation
     BEFORE UPDATE ON public.profiles
     FOR EACH ROW EXECUTE FUNCTION public.prevent_role_escalation();
 
-
--- ------------------------------------------------------------------------------
--- HELPER FUNCTION: CHECK IF CURRENT SESSION USER IS AN ADMIN
--- ------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.is_admin()
-RETURNS BOOLEAN AS $$
+-- 5. Helper Function: Grant admin status to any email easily from SQL Editor
+CREATE OR REPLACE FUNCTION public.make_admin(user_email TEXT)
+RETURNS TEXT AS $$
+DECLARE
+    target_id UUID;
 BEGIN
-    RETURN EXISTS (
-        SELECT 1 FROM public.profiles
-        WHERE id = auth.uid() AND role = 'admin'
-    );
+    SELECT id INTO target_id FROM auth.users WHERE email = user_email LIMIT 1;
+    IF target_id IS NULL THEN
+        RETURN 'User not found in auth.users with email: ' || user_email;
+    END IF;
+    UPDATE public.profiles SET role = 'admin', updated_at = NOW() WHERE id = target_id;
+    RETURN 'Success: User ' || user_email || ' is now an administrator.';
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
 -- ==============================================================================
@@ -217,12 +257,12 @@ ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
 -- ------------------------------------------------------------------------------
 -- POLICIES: PRODUCTS
 -- ------------------------------------------------------------------------------
--- Anyone (public/anon or authenticated) can view active products
+DROP POLICY IF EXISTS "Public users can view active products" ON public.products;
 CREATE POLICY "Public users can view active products"
     ON public.products FOR SELECT
-    USING (is_active = true);
+    USING (is_active = true OR public.is_admin());
 
--- Admins can view, insert, update and delete all products
+DROP POLICY IF EXISTS "Admins can manage products" ON public.products;
 CREATE POLICY "Admins can manage products"
     ON public.products FOR ALL
     USING (public.is_admin())
@@ -232,31 +272,36 @@ CREATE POLICY "Admins can manage products"
 -- ------------------------------------------------------------------------------
 -- POLICIES: PROFILES
 -- ------------------------------------------------------------------------------
--- Users can read their own profile
+DROP POLICY IF EXISTS "Users can read own profile" ON public.profiles;
 CREATE POLICY "Users can read own profile"
     ON public.profiles FOR SELECT
-    USING (auth.uid() = id);
+    USING (auth.uid() = id OR public.is_admin());
 
--- Users can update only their own profile
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 CREATE POLICY "Users can update own profile"
     ON public.profiles FOR UPDATE
-    USING (auth.uid() = id);
+    USING (auth.uid() = id OR public.is_admin());
+
+DROP POLICY IF EXISTS "Profiles insert policy" ON public.profiles;
+CREATE POLICY "Profiles insert policy"
+    ON public.profiles FOR INSERT
+    WITH CHECK (auth.uid() = id OR public.is_admin());
 
 
 -- ------------------------------------------------------------------------------
 -- POLICIES: WISHLISTS
 -- ------------------------------------------------------------------------------
--- Authenticated users can read their own wishlist
+DROP POLICY IF EXISTS "Users can view own wishlist" ON public.wishlists;
 CREATE POLICY "Users can view own wishlist"
     ON public.wishlists FOR SELECT
-    USING (auth.uid() = user_id);
+    USING (auth.uid() = user_id OR public.is_admin());
 
--- Authenticated users can add items to their own wishlist
+DROP POLICY IF EXISTS "Users can add to own wishlist" ON public.wishlists;
 CREATE POLICY "Users can add to own wishlist"
     ON public.wishlists FOR INSERT
     WITH CHECK (auth.uid() = user_id);
 
--- Authenticated users can remove items from their own wishlist
+DROP POLICY IF EXISTS "Users can delete from own wishlist" ON public.wishlists;
 CREATE POLICY "Users can delete from own wishlist"
     ON public.wishlists FOR DELETE
     USING (auth.uid() = user_id);
@@ -265,17 +310,17 @@ CREATE POLICY "Users can delete from own wishlist"
 -- ------------------------------------------------------------------------------
 -- POLICIES: ENQUIRIES
 -- ------------------------------------------------------------------------------
--- Anyone (guest or registered) can submit an enquiry
+DROP POLICY IF EXISTS "Anyone can submit enquiry" ON public.enquiries;
 CREATE POLICY "Anyone can submit enquiry"
     ON public.enquiries FOR INSERT
     WITH CHECK (true);
 
--- Authenticated users can view their own submitted enquiries; Admins can view all
+DROP POLICY IF EXISTS "Users can view own enquiries" ON public.enquiries;
 CREATE POLICY "Users can view own enquiries"
     ON public.enquiries FOR SELECT
     USING (public.is_admin() OR auth.uid() = user_id);
 
--- Admins can update enquiry status (e.g., mark resolved)
+DROP POLICY IF EXISTS "Admins can update enquiries" ON public.enquiries;
 CREATE POLICY "Admins can update enquiries"
     ON public.enquiries FOR UPDATE
     USING (public.is_admin())
@@ -285,43 +330,49 @@ CREATE POLICY "Admins can update enquiries"
 -- ------------------------------------------------------------------------------
 -- POLICIES: ORDERS
 -- ------------------------------------------------------------------------------
--- Users can view their own orders; Admins can view all orders
+DROP POLICY IF EXISTS "Users and admins can view orders" ON public.orders;
 CREATE POLICY "Users and admins can view orders"
     ON public.orders FOR SELECT
-    USING (public.is_admin() OR auth.uid() = user_id);
+    USING (public.is_admin() OR auth.uid() = user_id OR user_id IS NULL);
 
--- Authenticated or guest users can insert simulated orders
+DROP POLICY IF EXISTS "Users can insert simulated orders" ON public.orders;
 CREATE POLICY "Users can insert simulated orders"
     ON public.orders FOR INSERT
-    WITH CHECK (auth.uid() = user_id OR auth.uid() IS NULL);
+    WITH CHECK (true);
 
--- Admins can update order status (confirmed, shipped, delivered)
+DROP POLICY IF EXISTS "Admins can update order status" ON public.orders;
 CREATE POLICY "Admins can update order status"
     ON public.orders FOR UPDATE
     USING (public.is_admin())
     WITH CHECK (public.is_admin());
 
+DROP POLICY IF EXISTS "Admins can delete orders" ON public.orders;
+CREATE POLICY "Admins can delete orders"
+    ON public.orders FOR DELETE
+    USING (public.is_admin());
+
 
 -- ------------------------------------------------------------------------------
 -- POLICIES: ORDER_ITEMS
 -- ------------------------------------------------------------------------------
--- Users can view items belonging to their own orders
-CREATE POLICY "Users can view items in own orders"
+DROP POLICY IF EXISTS "Users and admins can view order items" ON public.order_items;
+CREATE POLICY "Users and admins can view order items"
     ON public.order_items FOR SELECT
     USING (
-        EXISTS (
+        public.is_admin()
+        OR EXISTS (
             SELECT 1 FROM public.orders
             WHERE orders.id = order_items.order_id
             AND (orders.user_id = auth.uid() OR orders.user_id IS NULL)
         )
     );
 
--- Allow inserting order items during order placement
+DROP POLICY IF EXISTS "Users can insert order items" ON public.order_items;
 CREATE POLICY "Users can insert order items"
     ON public.order_items FOR INSERT
-    WITH CHECK (
-        EXISTS (
-            SELECT 1 FROM public.orders
-            WHERE orders.id = order_items.order_id
-        )
-    );
+    WITH CHECK (public.order_exists(order_id));
+
+DROP POLICY IF EXISTS "Admins can delete order items" ON public.order_items;
+CREATE POLICY "Admins can delete order items"
+    ON public.order_items FOR DELETE
+    USING (public.is_admin());
