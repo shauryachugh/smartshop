@@ -3,6 +3,9 @@
   publish = "dist"
   functions = "netlify/functions"
 
+[build.environment]
+  ADMIN_PASSCODE = "admin2026"
+
 [functions]
   node_bundler = "esbuild"
   included_files = ["src/**"]

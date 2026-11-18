@@ -14,9 +14,9 @@ function netlifyFunctionsPlugin() {
     name: 'netlify-functions-dev-server',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
-        if (req.url && req.url.startsWith('/.netlify/functions/')) {
+        if (req.url && (req.url.startsWith('/.netlify/functions/') || req.url.startsWith('/api/'))) {
           const fnUrl = req.url.split('?')[0];
-          const fnName = fnUrl.replace('/.netlify/functions/', '');
+          const fnName = fnUrl.replace('/.netlify/functions/', '').replace('/api/', '');
 
           try {
             // Buffer request body chunks for POST/PUT

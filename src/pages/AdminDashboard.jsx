@@ -25,7 +25,6 @@ import {
   ArrowRight,
   ExternalLink,
   ChevronDown,
-  Mail,
   AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -39,8 +38,7 @@ export default function AdminDashboard() {
   
   // Authorization state
   const [isAdminAuth, setIsAdminAuth] = useState(() => adminService.isAdmin(user, profile));
-  const [adminEmail, setAdminEmail] = useState('');
-  const [adminPassword, setAdminPassword] = useState('');
+  const [adminPasscode, setAdminPasscode] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState(null);
 
@@ -103,41 +101,33 @@ export default function AdminDashboard() {
     }
   }, [isAdminAuth]);
 
-  // Handle Admin Authorization
+  // Handle Admin Passcode Authorization
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setAuthError(null);
     setAuthLoading(true);
 
     try {
-      const result = await adminService.authenticateAdmin({
-        email: adminEmail,
-        password: adminPassword,
-      });
-
+      const result = await adminService.verifyPasscode(adminPasscode);
       if (result.success) {
         setIsAdminAuth(true);
+        setAdminPasscode('');
         setAuthError(null);
       } else {
-        setAuthError(result.error || 'Invalid credentials or unauthorized account.');
+        setAuthError(result.error || 'Invalid admin passcode. Access denied.');
       }
     } catch (err) {
-      setAuthError('Authentication failed. Please verify your admin credentials.');
+      setAuthError('Authentication error. Please try again.');
     } finally {
       setAuthLoading(false);
     }
   };
 
-  const handleLogoutAdmin = async () => {
+  const handleLogoutAdmin = () => {
     adminService.clearAdminSession();
     setIsAdminAuth(false);
-    setAdminEmail('');
-    setAdminPassword('');
-    if (user && signOut) {
-      try {
-        await signOut();
-      } catch (e) {}
-    }
+    setAdminPasscode('');
+    setAuthError(null);
   };
 
   // Analytics
@@ -277,38 +267,21 @@ export default function AdminDashboard() {
             <Badge variant="amber" className="mb-1.5">Executive Clearance</Badge>
             <h2 className="font-serif text-2xl font-bold text-brand-dark">Commerce Control Portal</h2>
             <p className="text-xs text-brand-muted mt-1.5">
-              Authorized administrator credentials required for catalogue control, telemetry, and order fulfillment.
+              Enter administrative security passcode to access catalogue controls, inventory telemetry, and orders.
             </p>
           </div>
 
           <form onSubmit={handleAuthSubmit} className="space-y-4 text-left">
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold text-brand-dark">
-                Admin Email Address
-              </label>
-              <div className="relative">
-                <input
-                  type="email"
-                  required
-                  value={adminEmail}
-                  onChange={(e) => setAdminEmail(e.target.value)}
-                  placeholder="admin@shopsmart-ai.in"
-                  className="w-full text-xs py-2.5 pl-10 pr-3.5 rounded-xl border border-stone-200 focus:outline-none focus:border-amber-600 bg-stone-50 focus:bg-white"
-                />
-                <Mail className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-brand-dark">
-                Admin Password
+                Admin Security Passcode
               </label>
               <div className="relative">
                 <input
                   type="password"
                   required
-                  value={adminPassword}
-                  onChange={(e) => setAdminPassword(e.target.value)}
+                  value={adminPasscode}
+                  onChange={(e) => setAdminPasscode(e.target.value)}
                   placeholder="••••••••"
                   className="w-full text-xs py-2.5 pl-10 pr-3.5 rounded-xl border border-stone-200 focus:outline-none focus:border-amber-600 bg-stone-50 focus:bg-white"
                 />
@@ -331,19 +304,19 @@ export default function AdminDashboard() {
               {authLoading ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
-                  <span>Verifying Credentials...</span>
+                  <span>Verifying Passcode...</span>
                 </>
               ) : (
                 <>
                   <Unlock className="w-4 h-4 text-amber-400" />
-                  <span>Sign In to Admin Portal</span>
+                  <span>Unlock Admin Dashboard</span>
                 </>
               )}
             </button>
           </form>
 
           <div className="pt-2 border-t border-brand-border text-center text-[11px] text-stone-500">
-            <span>Protected by Supabase Role-Based Access Control</span>
+            <span>Protected by Secure Serverless Verification</span>
           </div>
         </div>
       </div>

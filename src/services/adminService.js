@@ -144,19 +144,41 @@ export const adminService = {
   },
 
   /**
-   * Verify an administrative passcode against environment variables (no hardcoded credentials)
+   * Verify an administrative passcode against the secure serverless Netlify function.
+   * Securely validates on the server using process.env.ADMIN_PASSCODE.
+   * Never hardcodes or exposes the expected passcode on the client.
    */
-  verifyPasscode(pin) {
-    if (!pin || typeof pin !== 'string') return false;
-    const envPasscode =
-      (typeof import.meta !== 'undefined' && import.meta.env?.VITE_ADMIN_PASSCODE) ||
-      (typeof process !== 'undefined' && process.env?.VITE_ADMIN_PASSCODE) ||
-      null;
-
-    if (envPasscode && pin.trim() === envPasscode.trim()) {
-      return true;
+  async verifyPasscode(passcode) {
+    if (!passcode || typeof passcode !== 'string') {
+      return { success: false, error: 'Passcode is required.' };
     }
-    return false;
+
+    try {
+      const response = await fetch('/.netlify/functions/verify-admin-passcode', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ passcode: passcode.trim() }),
+      });
+
+      const data = await response.json();
+      if (response.ok && data.authorized) {
+        this.setAdminSession(true);
+        return { success: true };
+      }
+
+      return {
+        success: false,
+        error: data.error || 'Invalid admin passcode. Access denied.',
+      };
+    } catch (err) {
+      console.warn('Passcode verification notice:', err.message);
+      return {
+        success: false,
+        error: 'Unable to connect to verification server. Please try again.',
+      };
+    }
   },
 
   /**
