@@ -63,11 +63,14 @@ assert(invalidProducts.length === 0, 'All products have non-zero INR price, vali
 
 // 3. Admin Service & Analytics Verification
 console.log('\n--- 3. Admin Management & Business Analytics ---');
-const adminPasscodeTest = adminService.verifyPasscode('admin2026');
-assert(adminPasscodeTest === true, 'Admin passcode verification accepts valid demo admin passcode');
+const adminRoleTest = adminService.isAdmin({ user_metadata: { role: 'admin' } }, { role: 'admin' });
+assert(adminRoleTest === true, 'Admin role verification accepts authorized admin account');
 
-const invalidPasscodeTest = adminService.verifyPasscode('wrongpassword');
-assert(invalidPasscodeTest === false, 'Admin passcode verification rejects invalid passcode');
+const managerRoleTest = adminService.isAdmin({ user_metadata: { role: 'manager' } }, { role: 'manager' });
+assert(managerRoleTest === true, 'Admin role verification accepts authorized manager account');
+
+const customerRoleTest = adminService.isAdmin({ user_metadata: { role: 'customer' } }, { role: 'customer' });
+assert(customerRoleTest === false, 'Admin role verification rejects unauthorized customer account');
 
 const sampleOrders = [
   { id: 'ord-1', total_amount: 19999, order_status: 'confirmed', customer_name: 'Aditi', created_at: new Date().toISOString() },

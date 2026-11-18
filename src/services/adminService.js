@@ -64,7 +64,12 @@ export const adminService = {
    * Check if current session is authorized as Admin
    */
   isAdmin(user = null, profile = null) {
-    if (profile?.role === 'admin' || user?.user_metadata?.role === 'admin') {
+    if (
+      profile?.role === 'admin' ||
+      profile?.role === 'manager' ||
+      user?.user_metadata?.role === 'admin' ||
+      user?.user_metadata?.role === 'manager'
+    ) {
       return true;
     }
     try {
@@ -76,18 +81,88 @@ export const adminService = {
   },
 
   /**
-   * Verify an administrative PIN/passcode
+   * Authenticate an admin user via Supabase and verify administrative role
    */
-  verifyPasscode(pin) {
-    if (!pin || typeof pin !== 'string') return false;
-    const clean = pin.trim().toLowerCase();
-    return clean === 'admin2026' || clean === 'shopsmart' || clean === '1234';
+  async authenticateAdmin({ email, password }) {
+    if (!email || !password) {
+      return { success: false, error: 'Email and password are required.' };
+    }
+
+    if (!isSupabaseConfigured) {
+      // In offline/mock mode without Supabase, verify via environment configuration
+      const envEmail = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_ADMIN_EMAIL) || null;
+      const envPassword = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_ADMIN_PASSWORD) || null;
+      if (envEmail && envPassword && email.trim() === envEmail && password === envPassword) {
+        this.setAdminSession(true);
+        return { success: true };
+      }
+      return { success: false, error: 'Supabase authentication service is currently unavailable.' };
+    }
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (error) {
+        return { success: false, error: error.message || 'Invalid email or password.' };
+      }
+
+      if (!data?.user) {
+        return { success: false, error: 'Authentication failed.' };
+      }
+
+      // Check role in user_metadata first
+      const metadataRole = data.user.user_metadata?.role;
+      if (metadataRole === 'admin' || metadataRole === 'manager') {
+        this.setAdminSession(true);
+        return { success: true, user: data.user, role: metadataRole };
+      }
+
+      // Verify role in public.profiles table
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', data.user.id)
+        .single();
+
+      if (!profileError && profile && (profile.role === 'admin' || profile.role === 'manager')) {
+        this.setAdminSession(true);
+        return { success: true, user: data.user, role: profile.role };
+      }
+
+      // If user is authenticated but not an admin, sign them out
+      await supabase.auth.signOut();
+      return {
+        success: false,
+        error: 'Access denied: This account does not have administrator privileges.',
+      };
+    } catch (err) {
+      return { success: false, error: err.message || 'Authentication error.' };
+    }
   },
 
   /**
-   * Set demo admin authorization for preview/testing
+   * Verify an administrative passcode against environment variables (no hardcoded credentials)
    */
-  setDemoAdmin(enabled = true) {
+  verifyPasscode(pin) {
+    if (!pin || typeof pin !== 'string') return false;
+    const envPasscode =
+      (typeof import.meta !== 'undefined' && import.meta.env?.VITE_ADMIN_PASSCODE) ||
+      (typeof process !== 'undefined' && process.env?.VITE_ADMIN_PASSCODE) ||
+      null;
+
+    if (envPasscode && pin.trim() === envPasscode.trim()) {
+      return true;
+    }
+    return false;
+  },
+
+  /**
+   * Set admin authorization session
+   */
+  setAdminSession(enabled = true) {
     try {
       if (enabled) {
         localStorage.setItem(ADMIN_STORAGE_KEY, 'true');
@@ -97,6 +172,20 @@ export const adminService = {
     } catch (e) {
       console.warn('LocalStorage error:', e);
     }
+  },
+
+  /**
+   * Clear admin authorization session
+   */
+  clearAdminSession() {
+    this.setAdminSession(false);
+  },
+
+  /**
+   * Backward-compatible alias for setAdminSession
+   */
+  setDemoAdmin(enabled = true) {
+    this.setAdminSession(enabled);
   },
 
   /**

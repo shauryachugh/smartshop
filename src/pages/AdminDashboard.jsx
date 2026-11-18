@@ -24,7 +24,9 @@ import {
   Upload,
   ArrowRight,
   ExternalLink,
-  ChevronDown
+  ChevronDown,
+  Mail,
+  AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { formatCurrency } from '../lib/utils';
@@ -33,11 +35,13 @@ import { CATEGORIES } from '../data/mockProducts';
 import Badge from '../components/common/Badge';
 
 export default function AdminDashboard() {
-  const { user, profile } = useAuth();
+  const { user, profile, signOut } = useAuth();
   
   // Authorization state
   const [isAdminAuth, setIsAdminAuth] = useState(() => adminService.isAdmin(user, profile));
-  const [adminPin, setAdminPin] = useState('');
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState(null);
 
   // Active navigation tab
@@ -47,6 +51,13 @@ export default function AdminDashboard() {
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Automatically update auth state if user/profile changes in AuthContext
+  useEffect(() => {
+    if (adminService.isAdmin(user, profile)) {
+      setIsAdminAuth(true);
+    }
+  }, [user, profile]);
 
   // Filters
   const [productSearch, setProductSearch] = useState('');
@@ -93,20 +104,40 @@ export default function AdminDashboard() {
   }, [isAdminAuth]);
 
   // Handle Admin Authorization
-  const handleAuthSubmit = (e) => {
+  const handleAuthSubmit = async (e) => {
     e.preventDefault();
-    if (adminPin.trim() === 'admin2026' || adminPin.trim() === 'shopsmart' || adminPin.trim() === '1234') {
-      adminService.setDemoAdmin(true);
-      setIsAdminAuth(true);
-      setAuthError(null);
-    } else {
-      setAuthError('Invalid Admin Passcode. Use demo passcode: admin2026');
+    setAuthError(null);
+    setAuthLoading(true);
+
+    try {
+      const result = await adminService.authenticateAdmin({
+        email: adminEmail,
+        password: adminPassword,
+      });
+
+      if (result.success) {
+        setIsAdminAuth(true);
+        setAuthError(null);
+      } else {
+        setAuthError(result.error || 'Invalid credentials or unauthorized account.');
+      }
+    } catch (err) {
+      setAuthError('Authentication failed. Please verify your admin credentials.');
+    } finally {
+      setAuthLoading(false);
     }
   };
 
-  const handleLogoutAdmin = () => {
-    adminService.setDemoAdmin(false);
+  const handleLogoutAdmin = async () => {
+    adminService.clearAdminSession();
     setIsAdminAuth(false);
+    setAdminEmail('');
+    setAdminPassword('');
+    if (user && signOut) {
+      try {
+        await signOut();
+      } catch (e) {}
+    }
   };
 
   // Analytics
@@ -236,52 +267,83 @@ export default function AdminDashboard() {
   // ----------------------------------------------------
   if (!isAdminAuth) {
     return (
-      <div className="max-w-md mx-auto px-4 py-24">
-        <div className="bg-white rounded-3xl p-8 border border-brand-border shadow-xl text-center space-y-6">
+      <div className="max-w-md mx-auto px-4 py-20 sm:py-24">
+        <div className="bg-white rounded-3xl p-8 sm:p-10 border border-brand-border shadow-xl text-center space-y-6">
           <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 flex items-center justify-center mx-auto shadow-soft-sm">
             <Lock className="w-8 h-8 text-amber-700" />
           </div>
 
           <div>
-            <h2 className="font-serif text-2xl font-bold text-brand-dark">Executive Portal</h2>
-            <p className="text-xs text-brand-muted mt-1">
-              Admin clearance required for catalogue control, inventory metrics, and orders.
+            <Badge variant="amber" className="mb-1.5">Executive Clearance</Badge>
+            <h2 className="font-serif text-2xl font-bold text-brand-dark">Commerce Control Portal</h2>
+            <p className="text-xs text-brand-muted mt-1.5">
+              Authorized administrator credentials required for catalogue control, telemetry, and order fulfillment.
             </p>
           </div>
 
           <form onSubmit={handleAuthSubmit} className="space-y-4 text-left">
-            <div>
-              <label className="block text-xs font-semibold text-brand-dark mb-1.5">
-                Admin Security Passcode
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-brand-dark">
+                Admin Email Address
               </label>
-              <input
-                type="password"
-                value={adminPin}
-                onChange={(e) => setAdminPin(e.target.value)}
-                placeholder="Enter passcode (e.g. admin2026)"
-                className="w-full text-sm py-2.5 px-3.5 rounded-xl border border-stone-200 focus:outline-none focus:border-amber-600 bg-stone-50"
-              />
+              <div className="relative">
+                <input
+                  type="email"
+                  required
+                  value={adminEmail}
+                  onChange={(e) => setAdminEmail(e.target.value)}
+                  placeholder="admin@shopsmart-ai.in"
+                  className="w-full text-xs py-2.5 pl-10 pr-3.5 rounded-xl border border-stone-200 focus:outline-none focus:border-amber-600 bg-stone-50 focus:bg-white"
+                />
+                <Mail className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-brand-dark">
+                Admin Password
+              </label>
+              <div className="relative">
+                <input
+                  type="password"
+                  required
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full text-xs py-2.5 pl-10 pr-3.5 rounded-xl border border-stone-200 focus:outline-none focus:border-amber-600 bg-stone-50 focus:bg-white"
+                />
+                <Lock className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
+              </div>
             </div>
 
             {authError && (
-              <p className="text-xs text-red-600 font-medium bg-red-50 p-2.5 rounded-xl border border-red-100">
-                {authError}
-              </p>
+              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                <span>{authError}</span>
+              </div>
             )}
 
             <button
               type="submit"
-              className="w-full py-2.5 rounded-xl bg-brand-dark hover:bg-brand-charcoal text-white text-xs font-semibold shadow-soft-sm transition-colors flex items-center justify-center gap-2"
+              disabled={authLoading}
+              className="w-full py-3 rounded-xl bg-brand-dark hover:bg-brand-charcoal text-white text-xs font-semibold shadow-soft-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 active:scale-98"
             >
-              <Unlock className="w-4 h-4 text-amber-400" />
-              <span>Unlock Admin Dashboard</span>
+              {authLoading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
+                  <span>Verifying Credentials...</span>
+                </>
+              ) : (
+                <>
+                  <Unlock className="w-4 h-4 text-amber-400" />
+                  <span>Sign In to Admin Portal</span>
+                </>
+              )}
             </button>
           </form>
 
-          <div className="pt-2 border-t border-brand-border text-center">
-            <span className="text-[11px] text-stone-600">
-              Evaluation Passcode: <code className="bg-amber-100/70 text-amber-900 px-2 py-0.5 rounded font-mono font-bold">admin2026</code>
-            </span>
+          <div className="pt-2 border-t border-brand-border text-center text-[11px] text-stone-500">
+            <span>Protected by Supabase Role-Based Access Control</span>
           </div>
         </div>
       </div>
