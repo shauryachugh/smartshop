@@ -24,6 +24,16 @@ import {
   parseAmount,
   ELECTRONICS_CHILD_CATEGORIES,
 } from '../../src/lib/budgetParser.js';
+import {
+  validateUrl,
+  getStoreName,
+  checkBlockedOrChallenge,
+  fetchAndExtractProduct,
+} from './extract-product.mjs';
+import {
+  runProductComparison,
+  generateSemanticComparison,
+} from './compare-external.mjs';
 import fs from 'fs';
 import path from 'path';
 
@@ -215,11 +225,18 @@ function handleSemanticFallback(message, conversationHistory, products, catalogM
 
       comparison = {
         title: `${prodA.name} vs ${prodB.name}`,
+        comparisonType: 'internal_vs_internal',
         products: [
           {
             id: prodA.id,
             name: prodA.name,
             price: prodA.price,
+            image: prodA.image,
+            source: 'ShopSmart AI Catalogue – Internal Product',
+            sourceTag: 'ShopSmart AI Catalogue – Internal Product',
+            sourceWebsite: 'ShopSmart AI Catalogue',
+            sourceType: 'internal',
+            sourceUrl: `/product/${prodA.id}`,
             highlights: Object.values(prodA.specifications || {}).slice(0, 4).map(String),
             bestFor: `Exceptional value in ${prodA.category}`,
           },
@@ -227,6 +244,12 @@ function handleSemanticFallback(message, conversationHistory, products, catalogM
             id: prodB.id,
             name: prodB.name,
             price: prodB.price,
+            image: prodB.image,
+            source: 'ShopSmart AI Catalogue – Internal Product',
+            sourceTag: 'ShopSmart AI Catalogue – Internal Product',
+            sourceWebsite: 'ShopSmart AI Catalogue',
+            sourceType: 'internal',
+            sourceUrl: `/product/${prodB.id}`,
             highlights: Object.values(prodB.specifications || {}).slice(0, 4).map(String),
             bestFor: `Popular choice in ${prodB.category}`,
           },
@@ -364,6 +387,312 @@ export async function handler(event, context) {
   // Fetch active products from database / catalogue
   const products = await getActiveProducts();
   const catalogMap = new Map(products.map((p) => [p.id, p]));
+
+  // -------------------------------------------------------------
+  // EXTERNAL PRODUCT URL DETECTION & COMPARISON PIPELINE
+  // -------------------------------------------------------------
+  const urlRegex = /https?:\/\/[^\s"'<>]+/gi;
+  const foundUrls = (message.match(urlRegex) || []).map((u) => u.trim());
+
+  if (foundUrls.length > 0) {
+    // 1. SSRF and Protocol Security Validation
+    for (const u of foundUrls) {
+      const vCheck = validateUrl(u);
+      if (!vCheck.allowed) {
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            success: true,
+            reply: `Security Notice: The URL you provided (${u}) cannot be accessed: ${vCheck.reason}. Please provide a valid public e-commerce product URL (such as Amazon India, Flipkart, Croma, or Reliance Digital).`,
+            products: [],
+            comparison: null,
+            modelUsed: 'url-security-guard',
+          }),
+        };
+      }
+    }
+
+    // 2. Scenario 1: Two or more external URLs (External vs External)
+    if (foundUrls.length >= 2) {
+      const [urlA, urlB] = foundUrls.slice(0, 2);
+      const extractA = await fetchAndExtractProduct(urlA);
+      const extractB = await fetchAndExtractProduct(urlB);
+
+      // If either external extraction is blocked by anti-bot protections:
+      if (extractA.blocked || extractB.blocked) {
+        const blockedSite = extractA.blocked ? extractA.sourceWebsite : extractB.sourceWebsite;
+        const blockedReason = extractA.blocked ? extractA.reason : extractB.reason;
+        const blockedUrl = extractA.blocked ? urlA : urlB;
+
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            success: true,
+            blocked: true,
+            sourceWebsite: blockedSite,
+            sourceUrl: blockedUrl,
+            promptManualEntry: true,
+            reply: `I recognized your external link from **${blockedSite}**. However, ${blockedSite} returned an automated anti-bot / verification challenge (${blockedReason}).\n\n` +
+              `🔒 **Anti-Bot Compliance:** In accordance with web security guidelines, ShopSmart AI respects site protections and does not bypass CAPTCHA challenges.\n\n` +
+              `⚠️ **No Unrelated Products Substituted:** We do not silently replace your link with an unrelated product from our catalogue.\n\n` +
+              `👉 **How to compare:** Please use our dedicated **[Compare Any Product Tool](/compare)** to enter the product details (name, price in ₹, specs) manually for an immediate, comprehensive Gemini AI comparison!`,
+            products: [],
+            comparison: null,
+            modelUsed: 'external-block-guard',
+          }),
+        };
+      }
+
+      if (!extractA.success || !extractB.success || !extractA.product || !extractB.product) {
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            success: true,
+            reply: `We encountered an issue reading one of the external product pages. Please verify the links or enter the details manually in our **[Compare Any Product Tool](/compare)**.`,
+            products: [],
+            comparison: null,
+            modelUsed: 'external-extract-guard',
+          }),
+        };
+      }
+
+      const productA = {
+        ...extractA.product,
+        id: 'ext-1',
+        source: `${extractA.product.sourceWebsite} – External Product`,
+        sourceTag: `${extractA.product.sourceWebsite} – External Product`,
+        sourceType: 'external',
+      };
+      const productB = {
+        ...extractB.product,
+        id: 'ext-2',
+        source: `${extractB.product.sourceWebsite} – External Product`,
+        sourceTag: `${extractB.product.sourceWebsite} – External Product`,
+        sourceType: 'external',
+      };
+
+      const compResult = await runProductComparison([productA, productB]);
+
+      const compData = {
+        title: `${productA.name} vs ${productB.name}`,
+        comparisonType: 'external_vs_external',
+        products: [
+          {
+            id: productA.id,
+            name: productA.name,
+            brand: productA.brand,
+            price: productA.price,
+            image: productA.image,
+            source: productA.sourceTag,
+            sourceTag: productA.sourceTag,
+            sourceWebsite: productA.sourceWebsite,
+            sourceType: 'external',
+            sourceUrl: productA.sourceUrl,
+            highlights: Object.entries(productA.specifications || {}).slice(0, 4).map(([k, v]) => `${k}: ${v}`),
+            bestFor: compResult.productAnalysis?.find((pa) => pa.productId === productA.id)?.bestFor || `Available on ${productA.sourceWebsite}`,
+          },
+          {
+            id: productB.id,
+            name: productB.name,
+            brand: productB.brand,
+            price: productB.price,
+            image: productB.image,
+            source: productB.sourceTag,
+            sourceTag: productB.sourceTag,
+            sourceWebsite: productB.sourceWebsite,
+            sourceType: 'external',
+            sourceUrl: productB.sourceUrl,
+            highlights: Object.entries(productB.specifications || {}).slice(0, 4).map(([k, v]) => `${k}: ${v}`),
+            bestFor: compResult.productAnalysis?.find((pa) => pa.productId === productB.id)?.bestFor || `Available on ${productB.sourceWebsite}`,
+          },
+        ],
+        verdict: compResult.valueForMoneyVerdict?.reason || 'Both products offer competitive features for their respective prices.',
+      };
+
+      const priceA = productA.price ? `₹${productA.price.toLocaleString('en-IN')}` : 'Price unverified';
+      const priceB = productB.price ? `₹${productB.price.toLocaleString('en-IN')}` : 'Price unverified';
+
+      const reply = `Here is a side-by-side comparison between your two external products:\n\n` +
+        `• **${productA.name}** (${priceA}) [**${productA.sourceTag}**]\n` +
+        `• **${productB.name}** (${priceB}) [**${productB.sourceTag}**]\n\n` +
+        `**Gemini AI Evaluation:**\n${compResult.executiveSummary}\n\n` +
+        `🏆 **Value-For-Money Winner:** **${compResult.valueForMoneyVerdict?.winnerName || productA.name}** — ${compResult.valueForMoneyVerdict?.reason || ''}`;
+
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          success: true,
+          reply,
+          products: [],
+          comparison: compData,
+          modelUsed: compResult.modelUsed || 'gemini-3.5-flash-lite',
+        }),
+      };
+    }
+
+    // 3. Scenario 2: Exactly 1 external URL (External vs Internal Supabase Catalogue)
+    const extUrl = foundUrls[0];
+    const extractRes = await fetchAndExtractProduct(extUrl);
+
+    if (extractRes.blocked) {
+      const blockedSite = extractRes.sourceWebsite || 'the external website';
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          success: true,
+          blocked: true,
+          sourceWebsite: blockedSite,
+          sourceUrl: extUrl,
+          promptManualEntry: true,
+          reply: `I recognized your external product link from **${blockedSite}** (${extUrl}).\n\n` +
+            `🔒 **Anti-Bot Challenge Detected:** ${blockedSite} has active automated scraping / bot protection (${extractRes.reason || 'HTTP 403 / Challenge'}). In accordance with security standards, we do not bypass CAPTCHA challenges.\n\n` +
+            `⚠️ **No Unrelated Products Substituted:** We do not silently replace your link with an unrelated product from our catalogue.\n\n` +
+            `👉 **How to compare:** Please use our dedicated **[Compare Any Product Tool](/compare)** and click **"Enter Details Manually"** to enter the product details (name, price in ₹, specs) for a complete Gemini AI comparison!`,
+          products: [],
+          comparison: null,
+          modelUsed: 'external-block-guard',
+        }),
+      };
+    }
+
+    if (!extractRes.success || !extractRes.product) {
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          success: true,
+          reply: `Could not retrieve product information from the provided link: ${extractRes.error || 'Page not found'}. You can compare it manually in our **[Compare Any Product Tool](/compare)**.`,
+          products: [],
+          comparison: null,
+          modelUsed: 'external-extract-guard',
+        }),
+      };
+    }
+
+    const productA = {
+      ...extractRes.product,
+      id: 'ext-1',
+      source: `${extractRes.product.sourceWebsite} – External Product`,
+      sourceTag: `${extractRes.product.sourceWebsite} – External Product`,
+      sourceType: 'external',
+    };
+
+    const queryText = message.replace(urlRegex, '').trim().toLowerCase();
+    let matchedInternal = null;
+
+    if (queryText) {
+      matchedInternal = products.find((p) => queryText.includes(p.name.toLowerCase()));
+      if (!matchedInternal) {
+        matchedInternal = products.find((p) => p.brand && queryText.includes(p.brand.toLowerCase()));
+      }
+      if (!matchedInternal) {
+        const brands = ['redmi', 'oneplus', 'samsung', 'apple', 'iphone', 'boat', 'asus', 'hp', 'dell', 'lenovo', 'sony', 'noise'];
+        for (const b of brands) {
+          if (queryText.includes(b)) {
+            matchedInternal = products.find((p) => (p.brand && p.brand.toLowerCase().includes(b)) || p.name.toLowerCase().includes(b));
+            if (matchedInternal) break;
+          }
+        }
+      }
+    }
+
+    if (!matchedInternal) {
+      const extNameLower = productA.name.toLowerCase();
+      let targetCat = 'Smartphones';
+      if (extNameLower.includes('laptop') || extNameLower.includes('vivobook') || extNameLower.includes('ideapad') || extNameLower.includes('macbook')) {
+        targetCat = 'Laptops';
+      } else if (extNameLower.includes('earbud') || extNameLower.includes('headphone') || extNameLower.includes('tws') || extNameLower.includes('airdopes')) {
+        targetCat = 'Headphones & Earbuds';
+      } else if (extNameLower.includes('watch') || extNameLower.includes('band')) {
+        targetCat = 'Smartwatches';
+      } else if (extNameLower.includes('car') || extNameLower.includes('foam') || extNameLower.includes('washer')) {
+        targetCat = 'Car Care';
+      }
+
+      const sameCatPool = products.filter((p) => p.category?.toLowerCase() === targetCat.toLowerCase());
+      matchedInternal = sameCatPool.length > 0 ? sameCatPool[0] : products[0];
+    }
+
+    const productB = {
+      id: matchedInternal.id,
+      name: matchedInternal.name,
+      brand: matchedInternal.brand,
+      price: matchedInternal.price,
+      currency: 'INR',
+      image: matchedInternal.image,
+      sourceWebsite: 'ShopSmart AI Catalogue',
+      source: 'ShopSmart AI Catalogue – Internal Product',
+      sourceTag: 'ShopSmart AI Catalogue – Internal Product',
+      sourceType: 'internal',
+      sourceUrl: `/product/${matchedInternal.id}`,
+      specifications: matchedInternal.specifications || {},
+      highlights: Object.entries(matchedInternal.specifications || {}).slice(0, 4).map(([k, v]) => `${k}: ${v}`),
+    };
+
+    const compResult = await runProductComparison([productA, productB]);
+
+    const compData = {
+      title: `${productA.name} (${productA.sourceWebsite}) vs ${productB.name} (ShopSmart AI Catalogue)`,
+      comparisonType: 'external_vs_internal',
+      products: [
+        {
+          id: productA.id,
+          name: productA.name,
+          brand: productA.brand,
+          price: productA.price,
+          image: productA.image,
+          source: productA.sourceTag,
+          sourceTag: productA.sourceTag,
+          sourceWebsite: productA.sourceWebsite,
+          sourceType: 'external',
+          sourceUrl: productA.sourceUrl,
+          highlights: Object.entries(productA.specifications || {}).slice(0, 4).map(([k, v]) => `${k}: ${v}`),
+          bestFor: compResult.productAnalysis?.find((pa) => pa.productId === productA.id)?.bestFor || `External offering from ${productA.sourceWebsite}`,
+        },
+        {
+          id: productB.id,
+          name: productB.name,
+          brand: productB.brand,
+          price: productB.price,
+          image: productB.image,
+          source: productB.sourceTag,
+          sourceTag: productB.sourceTag,
+          sourceWebsite: productB.sourceWebsite,
+          sourceType: 'internal',
+          sourceUrl: productB.sourceUrl,
+          highlights: Object.entries(productB.specifications || {}).slice(0, 4).map(([k, v]) => `${k}: ${v}`),
+          bestFor: compResult.productAnalysis?.find((pa) => pa.productId === productB.id)?.bestFor || 'In-stock in ShopSmart AI verified catalogue',
+        },
+      ],
+      verdict: compResult.valueForMoneyVerdict?.reason || 'Both products offer compelling features within their price classes.',
+    };
+
+    const priceA = productA.price ? `₹${productA.price.toLocaleString('en-IN')}` : 'Price unverified';
+    const priceB = productB.price ? `₹${productB.price.toLocaleString('en-IN')}` : 'Price unverified';
+
+    const reply = `Here is a side-by-side comparison between the external product from **${productA.sourceWebsite}** and our internal catalogue product:\n\n` +
+      `• **${productA.name}** (${priceA}) [**${productA.sourceTag}**]\n` +
+      `• **${productB.name}** (${priceB}) [**${productB.sourceTag}**]\n\n` +
+      `**Gemini AI Evaluation:**\n${compResult.executiveSummary}\n\n` +
+      `🏆 **Value-For-Money Winner:** **${compResult.valueForMoneyVerdict?.winnerName || productA.name}** — ${compResult.valueForMoneyVerdict?.reason || ''}`;
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        success: true,
+        reply,
+        products: [matchedInternal],
+        comparison: compData,
+        modelUsed: compResult.modelUsed || 'gemini-3.5-flash-lite',
+      }),
+    };
+  }
 
   // 1. EXTRACT BUDGET & CATEGORY FROM USER'S MESSAGE
   const budget = extractBudget(message);
@@ -614,17 +943,30 @@ You MUST respond with a single valid JSON object with the following schema:
     // Validate comparison items
     let validatedComparison = parsedData.comparison || null;
     if (validatedComparison && Array.isArray(validatedComparison.products)) {
-      validatedComparison.products = validatedComparison.products.filter((p) => {
-        const catProd = catalogMap.get(p.id);
-        if (!catProd) return false;
-        if (budget.hasBudget && budget.maxPrice !== null && catProd.price > budget.maxPrice) {
-          return false;
-        }
-        if (budget.hasBudget && budget.minPrice !== null && budget.budgetType !== 'max' && catProd.price < budget.minPrice) {
-          return false;
-        }
-        return true;
-      });
+      validatedComparison.comparisonType = 'internal_vs_internal';
+      validatedComparison.products = validatedComparison.products
+        .map((p) => {
+          const catProd = catalogMap.get(p.id) || p;
+          return {
+            ...p,
+            source: 'ShopSmart AI Catalogue – Internal Product',
+            sourceTag: 'ShopSmart AI Catalogue – Internal Product',
+            sourceWebsite: 'ShopSmart AI Catalogue',
+            sourceType: 'internal',
+            sourceUrl: `/product/${catProd.id}`,
+          };
+        })
+        .filter((p) => {
+          const catProd = catalogMap.get(p.id);
+          if (!catProd) return false;
+          if (budget.hasBudget && budget.maxPrice !== null && catProd.price > budget.maxPrice) {
+            return false;
+          }
+          if (budget.hasBudget && budget.minPrice !== null && budget.budgetType !== 'max' && catProd.price < budget.minPrice) {
+            return false;
+          }
+          return true;
+        });
       if (validatedComparison.products.length < 2) {
         validatedComparison = null;
       }

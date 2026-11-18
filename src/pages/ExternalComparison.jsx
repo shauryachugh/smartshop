@@ -19,10 +19,12 @@ import {
   Info,
   Clock,
   HelpCircle,
-  X
+  X,
+  Package
 } from 'lucide-react';
 import { externalCompareService, SAMPLE_PRESETS } from '../services/externalCompareService';
 import { formatCurrency } from '../lib/utils';
+import { PRODUCTS } from '../data/mockProducts';
 import Badge from '../components/common/Badge';
 
 export default function ExternalComparison() {
@@ -30,14 +32,18 @@ export default function ExternalComparison() {
   const [items, setItems] = useState([
     {
       id: 'prod-1',
+      sourceType: 'external', // 'external' | 'internal'
       url: '',
+      selectedInternalId: '',
       status: 'idle', // 'idle' | 'extracting' | 'extracted' | 'blocked' | 'error'
       errorMsg: null,
       data: null,
     },
     {
       id: 'prod-2',
+      sourceType: 'external',
       url: '',
+      selectedInternalId: '',
       status: 'idle',
       errorMsg: null,
       data: null,
@@ -84,7 +90,9 @@ export default function ExternalComparison() {
       ...prev,
       {
         id: `prod-${Date.now()}`,
+        sourceType: 'external',
         url: '',
+        selectedInternalId: '',
         status: 'idle',
         errorMsg: null,
         data: null,
@@ -98,14 +106,69 @@ export default function ExternalComparison() {
     setItems((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // Toggle slot source type: external URL vs internal catalogue
+  const handleToggleSourceType = (index, newType) => {
+    setItems((prev) => {
+      const copy = [...prev];
+      copy[index] = {
+        ...copy[index],
+        sourceType: newType,
+        url: '',
+        selectedInternalId: '',
+        status: 'idle',
+        errorMsg: null,
+        data: null,
+      };
+      return copy;
+    });
+  };
+
+  // Select a product from internal ShopSmart catalogue
+  const handleSelectInternalProduct = (index, productId) => {
+    const found = PRODUCTS.find((p) => p.id === productId);
+    if (!found) return;
+
+    const data = {
+      id: found.id,
+      name: found.name,
+      brand: found.brand || 'ShopSmart',
+      price: found.price,
+      currency: 'INR',
+      image: found.image,
+      sourceWebsite: 'ShopSmart AI Catalogue',
+      sourceTag: 'ShopSmart AI Catalogue – Internal Product',
+      sourceType: 'internal',
+      sourceUrl: `/product/${found.id}`,
+      specifications: found.specifications || {},
+      retrievedAt: new Date().toISOString(),
+      isManual: false,
+      isPartial: false,
+      missingFields: [],
+    };
+
+    setItems((prev) => {
+      const copy = [...prev];
+      copy[index] = {
+        ...copy[index],
+        selectedInternalId: productId,
+        status: 'extracted',
+        errorMsg: null,
+        data,
+      };
+      return copy;
+    });
+  };
+
   // Load sample preset
   const handleLoadPreset = (preset) => {
     setGeneralError(null);
     setComparisonResult(null);
 
     const newItems = preset.sampleProducts.map((p, idx) => ({
-      id: `prod-${idx + 1}`,
-      url: p.sourceUrl,
+      id: p.id || `prod-${idx + 1}`,
+      sourceType: p.sourceType || (p.sourceWebsite?.includes('ShopSmart') ? 'internal' : 'external'),
+      url: p.sourceUrl || '',
+      selectedInternalId: p.sourceType === 'internal' ? p.id : '',
       status: 'extracted',
       errorMsg: null,
       data: p,
@@ -168,6 +231,8 @@ export default function ExternalComparison() {
       currency: 'INR',
       image: manualForm.image.trim() || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=600&q=80',
       sourceWebsite: manualForm.sourceWebsite || 'External Store',
+      sourceTag: `${manualForm.sourceWebsite || 'External Store'} – External Product`,
+      sourceType: 'external',
       sourceUrl: manualForm.sourceUrl || items[editingItemIndex].url,
       retrievedAt: new Date().toISOString(),
       isManual: true,
@@ -189,8 +254,13 @@ export default function ExternalComparison() {
     setEditingItemIndex(null);
   };
 
-  // Extract a single product URL
+  // Extract a single product URL or return internal item
   const extractSingleItem = async (index, currentItem) => {
+    if (currentItem.sourceType === 'internal') {
+      if (currentItem.data) return currentItem.data;
+      throw new Error(`Please select a product from the ShopSmart catalogue for Product ${index + 1}.`);
+    }
+
     if (currentItem.data && currentItem.status === 'extracted') {
       return currentItem.data;
     }
@@ -216,6 +286,8 @@ export default function ExternalComparison() {
           errorMsg: res.reason || 'Extraction blocked by source website security.',
           data: {
             sourceWebsite: res.sourceWebsite || 'External Store',
+            sourceTag: `${res.sourceWebsite || 'External Store'} – External Product`,
+            sourceType: 'external',
             sourceUrl: currentItem.url,
           },
         };
@@ -240,6 +312,8 @@ export default function ExternalComparison() {
     const prod = {
       ...res.product,
       id: currentItem.id,
+      sourceTag: `${res.product.sourceWebsite} – External Product`,
+      sourceType: 'external',
     };
 
     setItems((prev) => {
@@ -261,9 +335,13 @@ export default function ExternalComparison() {
     setGeneralError(null);
     setComparisonResult(null);
 
-    // Validate that at least 2 slots have either URL or extracted data
+    // Validate each slot has either an internal selection or external URL
     for (let i = 0; i < items.length; i++) {
-      if (!items[i].url.trim() && !items[i].data) {
+      if (items[i].sourceType === 'internal' && !items[i].data) {
+        setGeneralError(`Please select a product from the ShopSmart catalogue for Product ${i + 1}.`);
+        return;
+      }
+      if (items[i].sourceType === 'external' && !items[i].url.trim() && !items[i].data) {
         setGeneralError(`Please enter a product URL for Product ${i + 1}.`);
         return;
       }
@@ -417,9 +495,13 @@ export default function ExternalComparison() {
                     <span className="text-xs font-bold text-brand-charcoal">
                       Product {index + 1}
                     </span>
-                    {item.data?.sourceWebsite && (
-                      <span className="text-[10px] bg-stone-100 text-stone-700 font-medium px-2 py-0.5 rounded-full border border-stone-200">
-                        {item.data.sourceWebsite}
+                    {item.data?.sourceTag && (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                        item.sourceType === 'internal' || item.data.sourceType === 'internal'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : 'bg-blue-50 text-blue-800 border-blue-200'
+                      }`}>
+                        {item.data.sourceTag}
                       </span>
                     )}
                   </div>
@@ -435,33 +517,79 @@ export default function ExternalComparison() {
                   )}
                 </div>
 
-                {/* URL Input */}
+                {/* Source Mode Toggle: External URL vs ShopSmart Catalogue */}
+                <div className="flex items-center gap-1.5 p-1 bg-stone-100 rounded-xl mb-3">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleSourceType(index, 'external')}
+                    className={`flex-1 py-1.5 px-2.5 rounded-lg text-[11px] font-semibold transition-all ${
+                      item.sourceType !== 'internal'
+                        ? 'bg-white text-brand-dark shadow-soft-xs'
+                        : 'text-stone-500 hover:text-brand-dark'
+                    }`}
+                  >
+                    External Store URL
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleSourceType(index, 'internal')}
+                    className={`flex-1 py-1.5 px-2.5 rounded-lg text-[11px] font-semibold transition-all ${
+                      item.sourceType === 'internal'
+                        ? 'bg-white text-emerald-800 shadow-soft-xs'
+                        : 'text-stone-500 hover:text-brand-dark'
+                    }`}
+                  >
+                    ShopSmart Catalogue
+                  </button>
+                </div>
+
+                {/* Slot Body: External URL or Internal Catalogue Dropdown */}
                 <div className="space-y-3">
-                  <div>
-                    <label className="block text-[11px] font-medium text-brand-muted mb-1">
-                      Product URL (Amazon India, Flipkart, Croma, Reliance Digital, etc.)
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="url"
-                        value={item.url}
-                        onChange={(e) => handleUrlChange(index, e.target.value)}
-                        placeholder="https://www.amazon.in/dp/... or https://www.flipkart.com/..."
-                        disabled={isProcessing}
-                        className="w-full bg-stone-50 border border-brand-border rounded-xl py-2.5 pl-3.5 pr-20 text-xs text-brand-dark focus:outline-none focus:border-amber-600 focus:bg-white transition-all shadow-inner"
-                      />
-                      {item.url && (
-                        <button
-                          type="button"
-                          onClick={() => extractSingleItem(index, item)}
-                          disabled={isProcessing || item.status === 'extracting'}
-                          className="absolute right-1.5 top-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-stone-200 hover:bg-amber-600 hover:text-white transition-colors"
-                        >
-                          {item.status === 'extracting' ? 'Fetching...' : 'Fetch'}
-                        </button>
-                      )}
+                  {item.sourceType === 'internal' ? (
+                    <div>
+                      <label className="block text-[11px] font-medium text-brand-muted mb-1">
+                        Select Product from ShopSmart Catalogue:
+                      </label>
+                      <select
+                        value={item.selectedInternalId || ''}
+                        onChange={(e) => handleSelectInternalProduct(index, e.target.value)}
+                        className="w-full bg-stone-50 border border-brand-border rounded-xl py-2.5 px-3 text-xs text-brand-dark focus:outline-none focus:border-amber-600 focus:bg-white transition-all shadow-inner"
+                      >
+                        <option value="">-- Choose a product ({PRODUCTS.length} in catalogue) --</option>
+                        {PRODUCTS.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            [{p.category}] {p.name} — ₹{p.price.toLocaleString('en-IN')}
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                  </div>
+                  ) : (
+                    <div>
+                      <label className="block text-[11px] font-medium text-brand-muted mb-1">
+                        Product URL (Amazon India, Flipkart, Croma, Reliance Digital, etc.)
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="url"
+                          value={item.url}
+                          onChange={(e) => handleUrlChange(index, e.target.value)}
+                          placeholder="https://www.amazon.in/dp/... or https://www.flipkart.com/..."
+                          disabled={isProcessing}
+                          className="w-full bg-stone-50 border border-brand-border rounded-xl py-2.5 pl-3.5 pr-20 text-xs text-brand-dark focus:outline-none focus:border-amber-600 focus:bg-white transition-all shadow-inner"
+                        />
+                        {item.url && (
+                          <button
+                            type="button"
+                            onClick={() => extractSingleItem(index, item)}
+                            disabled={isProcessing || item.status === 'extracting'}
+                            className="absolute right-1.5 top-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-stone-200 hover:bg-amber-600 hover:text-white transition-colors"
+                          >
+                            {item.status === 'extracting' ? 'Fetching...' : 'Fetch'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Extraction State Feedback */}
                   {item.status === 'extracting' && (
@@ -658,8 +786,14 @@ export default function ExternalComparison() {
                         </div>
 
                         <div>
-                          <span className="text-[10px] font-semibold text-brand-muted uppercase tracking-wider">
-                            {p.sourceWebsite || 'External Store'}
+                          <span
+                            className={`inline-block text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border mb-1.5 ${
+                              p.sourceType === 'internal'
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                : 'bg-blue-50 text-blue-800 border-blue-200'
+                            }`}
+                          >
+                            {p.sourceTag || (p.sourceType === 'internal' ? 'ShopSmart AI Catalogue – Internal Product' : `${p.sourceWebsite || 'External'} – External Product`)}
                           </span>
                           <h3 className="font-bold text-xs text-brand-dark line-clamp-2 mt-0.5" title={p.name}>
                             {p.name}
@@ -675,18 +809,28 @@ export default function ExternalComparison() {
 
                       <div className="pt-4 border-t border-stone-100 mt-4 flex items-center justify-between text-[11px]">
                         <span className="text-stone-400">
-                          {p.isManual ? 'Manual Entry' : 'Extracted'}
+                          {p.sourceType === 'internal' ? 'ShopSmart Catalogue' : p.isManual ? 'Manual Entry' : 'Extracted'}
                         </span>
                         {p.sourceUrl && (
-                          <a
-                            href={p.sourceUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="font-semibold text-amber-800 hover:text-amber-900 flex items-center gap-1"
-                          >
-                            <span>View Store</span>
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
+                          p.sourceType === 'internal' ? (
+                            <Link
+                              to={p.sourceUrl}
+                              className="font-semibold text-emerald-800 hover:text-emerald-900 flex items-center gap-1"
+                            >
+                              <span>View in ShopSmart</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </Link>
+                          ) : (
+                            <a
+                              href={p.sourceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-semibold text-blue-800 hover:text-blue-900 flex items-center gap-1"
+                            >
+                              <span>View on Store</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )
                         )}
                       </div>
                     </div>
@@ -749,11 +893,20 @@ export default function ExternalComparison() {
                         <th className="py-3 px-4 w-1/4">Specification</th>
                         {items
                           .filter((i) => i.data && i.data.name)
-                          .map((i) => (
-                            <th key={i.id} className="py-3 px-4">
-                              {i.data.name.slice(0, 32)}...
-                            </th>
-                          ))}
+                          .map((i) => {
+                            const isInternal = i.sourceType === 'internal' || i.data.sourceType === 'internal';
+                            const tag = i.data.sourceTag || (isInternal ? 'ShopSmart AI Catalogue – Internal Product' : `${i.data.sourceWebsite || 'External'} – External Product`);
+                            return (
+                              <th key={i.id} className="py-3 px-4">
+                                <div className={`text-[9px] uppercase tracking-wider font-bold mb-1 px-1.5 py-0.5 rounded inline-block ${
+                                  isInternal ? 'bg-emerald-100/70 text-emerald-800' : 'bg-blue-100/70 text-blue-800'
+                                }`}>
+                                  {tag}
+                                </div>
+                                <div className="text-brand-dark font-semibold line-clamp-1">{i.data.name.slice(0, 32)}...</div>
+                              </th>
+                            );
+                          })}
                         <th className="py-3 px-4 w-1/4">AI Analysis</th>
                       </tr>
                     </thead>
@@ -804,9 +957,20 @@ export default function ExternalComparison() {
                       key={item.productId || idx}
                       className="bg-white rounded-2xl p-6 border border-brand-border shadow-soft-sm space-y-4"
                     >
-                      <h4 className="font-bold text-sm text-brand-dark">
-                        {item.name}
-                      </h4>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <h4 className="font-bold text-sm text-brand-dark">
+                          {item.name}
+                        </h4>
+                        <span
+                          className={`text-[9.5px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border shrink-0 ${
+                            item.sourceType === 'internal' || (item.sourceTag && item.sourceTag.includes('Internal'))
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                              : 'bg-blue-50 text-blue-800 border-blue-200'
+                          }`}
+                        >
+                          {item.sourceTag || (item.sourceType === 'internal' ? 'ShopSmart AI Catalogue – Internal Product' : 'External Product')}
+                        </span>
+                      </div>
 
                       {/* Advantages */}
                       <div className="space-y-1.5">

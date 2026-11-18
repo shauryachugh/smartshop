@@ -395,12 +395,112 @@ export function extractProductDetails(html, urlObj) {
     description: description ? description.slice(0, 500) : '',
     specifications,
     sourceWebsite,
+    sourceTag: `${sourceWebsite} – External Product`,
+    sourceType: 'external',
     sourceUrl,
     retrievedAt: new Date().toISOString(),
     isPartial,
     missingFields: missing,
     extractedVia,
   };
+}
+
+/**
+ * High-level helper: validates URL, fetches page politely, detects anti-bot challenges,
+ * and extracts structured metadata.
+ * @param {string} rawUrl
+ * @returns {Promise<Object>}
+ */
+export async function fetchAndExtractProduct(rawUrl) {
+  // 1. Strict SSRF and URL validation
+  const validation = validateUrl(rawUrl);
+  if (!validation.allowed) {
+    return {
+      success: false,
+      blocked: false,
+      isValidationError: true,
+      error: validation.reason,
+    };
+  }
+
+  const urlObj = validation.url;
+  const storeName = getStoreName(urlObj.hostname);
+
+  // 2. Fetch the external page politely
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 9000); // 9 second timeout
+
+    const fetchResponse = await fetch(urlObj.href, {
+      method: 'GET',
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 (compatible; ShopSmartAI-ProductExtractor/1.0)',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-IN,en-US;q=0.9,en;q=0.8',
+        'Cache-Control': 'no-cache',
+      },
+      redirect: 'follow',
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    // 3. Check for HTTP status blocks (403, 429, 503, etc.)
+    const statusCheck = checkBlockedOrChallenge(fetchResponse.status);
+    if (statusCheck.isBlocked) {
+      return {
+        success: false,
+        blocked: true,
+        status: fetchResponse.status,
+        sourceWebsite: storeName,
+        sourceTag: `${storeName} – External Product`,
+        sourceUrl: urlObj.href,
+        reason: statusCheck.reason,
+        promptManualEntry: true,
+      };
+    }
+
+    const html = await fetchResponse.text();
+
+    // 4. Check for in-page anti-bot / challenge markers
+    const contentCheck = checkBlockedOrChallenge(200, html);
+    if (contentCheck.isBlocked) {
+      return {
+        success: false,
+        blocked: true,
+        sourceWebsite: storeName,
+        sourceTag: `${storeName} – External Product`,
+        sourceUrl: urlObj.href,
+        reason: contentCheck.reason,
+        promptManualEntry: true,
+      };
+    }
+
+    // 5. Parse product details
+    const product = extractProductDetails(html, urlObj);
+    product.sourceTag = `${storeName} – External Product`;
+    product.sourceType = 'external';
+
+    return {
+      success: true,
+      blocked: false,
+      product,
+    };
+  } catch (fetchErr) {
+    const isTimeout = fetchErr.name === 'AbortError' || fetchErr.message?.includes('timeout');
+    return {
+      success: false,
+      blocked: true,
+      sourceWebsite: storeName,
+      sourceTag: `${storeName} – External Product`,
+      sourceUrl: urlObj.href,
+      reason: isTimeout
+        ? 'The target website took too long to respond (>9s). Automated extraction timed out.'
+        : `Could not fetch the product page: ${fetchErr.message}.`,
+      promptManualEntry: true,
+    };
+  }
 }
 
 /**
@@ -438,110 +538,24 @@ export async function handler(event, context) {
     };
   }
 
-  // 1. Strict SSRF and URL validation
-  const validation = validateUrl(rawUrl);
-  if (!validation.allowed) {
+  // Perform extraction with SSRF security and anti-bot checks
+  const result = await fetchAndExtractProduct(rawUrl);
+
+  if (result.isValidationError) {
     return {
       statusCode: 400,
       headers,
       body: JSON.stringify({
         success: false,
-        error: validation.reason,
+        error: result.error,
         isValidationError: true,
       }),
     };
   }
 
-  const urlObj = validation.url;
-  const storeName = getStoreName(urlObj.hostname);
-
-  // 2. Fetch the external page politely
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 9000); // 9 second timeout
-
-    const fetchResponse = await fetch(urlObj.href, {
-      method: 'GET',
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 (compatible; ShopSmartAI-ProductExtractor/1.0)',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-IN,en-US;q=0.9,en;q=0.8',
-        'Cache-Control': 'no-cache',
-      },
-      redirect: 'follow',
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    // 3. Check for HTTP status blocks (403, 429, 503, etc.)
-    const statusCheck = checkBlockedOrChallenge(fetchResponse.status);
-    if (statusCheck.isBlocked) {
-      return {
-        statusCode: 200, // Return 200 with blocked: true so the client can show the manual entry prompt smoothly
-        headers,
-        body: JSON.stringify({
-          success: false,
-          blocked: true,
-          status: fetchResponse.status,
-          sourceWebsite: storeName,
-          sourceUrl: urlObj.href,
-          reason: statusCheck.reason,
-          promptManualEntry: true,
-        }),
-      };
-    }
-
-    const html = await fetchResponse.text();
-
-    // 4. Check for in-page anti-bot / challenge markers
-    const contentCheck = checkBlockedOrChallenge(200, html);
-    if (contentCheck.isBlocked) {
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({
-          success: false,
-          blocked: true,
-          sourceWebsite: storeName,
-          sourceUrl: urlObj.href,
-          reason: contentCheck.reason,
-          promptManualEntry: true,
-        }),
-      };
-    }
-
-    // 5. Parse product details
-    const product = extractProductDetails(html, urlObj);
-
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        success: true,
-        blocked: false,
-        product,
-      }),
-    };
-  } catch (fetchErr) {
-    console.warn(`[extract-product] Fetch failed for ${urlObj.href}:`, fetchErr.message);
-
-    // Timeout or network error
-    const isTimeout = fetchErr.name === 'AbortError' || fetchErr.message.includes('timeout');
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        success: false,
-        blocked: true,
-        sourceWebsite: storeName,
-        sourceUrl: urlObj.href,
-        reason: isTimeout
-          ? 'The target website took too long to respond (>9s). Automated extraction timed out.'
-          : `Could not fetch the product page: ${fetchErr.message}.`,
-        promptManualEntry: true,
-      }),
-    };
-  }
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify(result),
+  };
 }

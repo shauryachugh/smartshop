@@ -16,7 +16,9 @@ import {
   Star, 
   ExternalLink,
   Zap,
-  Tag
+  Tag,
+  ShieldAlert,
+  ArrowRight
 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { formatCurrency } from '../../lib/utils';
@@ -144,6 +146,10 @@ export default function AIAssistantWidget() {
         text: response.reply,
         products: response.products || [],
         comparison: response.comparison || null,
+        blocked: Boolean(response.blocked),
+        promptManualEntry: Boolean(response.promptManualEntry),
+        sourceWebsite: response.sourceWebsite || '',
+        sourceUrl: response.sourceUrl || '',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
 
@@ -373,6 +379,28 @@ export default function AIAssistantWidget() {
                     </div>
                   )}
 
+                  {/* Anti-Bot Challenge Notice & Manual Entry Redirect */}
+                  {msg.promptManualEntry && (
+                    <div className="pt-2">
+                      <div className="p-3 rounded-2xl bg-orange-50 border border-orange-200 text-xs text-orange-950 space-y-2">
+                        <div className="flex items-center gap-1.5 font-semibold text-orange-900">
+                          <ShieldAlert className="w-4 h-4 text-orange-600 shrink-0" />
+                          <span>Automated Extraction Restricted by {msg.sourceWebsite || 'Merchant'}</span>
+                        </div>
+                        <p className="text-[11px] text-orange-800 leading-relaxed">
+                          This external platform uses automated bot challenges (HTTP 403 / verification). As per web security standards, we do not bypass anti-bot shields or substitute fake products.
+                        </p>
+                        <Link
+                          to="/compare"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-semibold text-[11px] transition-colors"
+                        >
+                          <span>Open External Comparison Tool to Enter Specs</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Render Structured Comparison View if available */}
                   {msg.comparison && (
                     <div className="pt-2">
@@ -384,39 +412,81 @@ export default function AIAssistantWidget() {
 
                         {/* Side-by-Side Comparison Cards */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {msg.comparison.products?.map((item, idx) => (
-                            <div
-                              key={item.id || idx}
-                              className="p-2.5 rounded-xl bg-white border border-amber-200/60 flex flex-col justify-between"
-                            >
-                              <div>
-                                <h6 className="font-serif font-semibold text-xs text-brand-dark line-clamp-1">
-                                  {item.name}
-                                </h6>
-                                <p className="text-xs font-bold text-amber-800 my-1">
-                                  {formatCurrency(item.price)}
-                                </p>
+                          {msg.comparison.products?.map((item, idx) => {
+                            const isExternal = item.sourceType === 'external' || (item.source && item.source.includes('External'));
+                            const sourceLabel = item.source || item.sourceTag || (isExternal ? `${item.sourceWebsite || 'External'} – External Product` : 'ShopSmart AI Catalogue – Internal Product');
 
-                                {item.highlights && item.highlights.length > 0 && (
-                                  <ul className="text-[10px] text-stone-600 space-y-1 mb-2">
-                                    {item.highlights.map((h, i) => (
-                                      <li key={i} className="flex items-center gap-1">
-                                        <span className="w-1 h-1 rounded-full bg-amber-500"></span>
-                                        <span>{h}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                )}
-                              </div>
+                            return (
+                              <div
+                                key={item.id || idx}
+                                className="p-2.5 rounded-xl bg-white border border-amber-200/60 flex flex-col justify-between"
+                              >
+                                <div>
+                                  {/* SOURCE IDENTIFICATION BADGE */}
+                                  <div className="mb-1.5">
+                                    <span
+                                      className={`inline-block text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                                        isExternal
+                                          ? 'bg-blue-50 text-blue-800 border-blue-200'
+                                          : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                      }`}
+                                    >
+                                      {sourceLabel}
+                                    </span>
+                                  </div>
 
-                              {item.bestFor && (
-                                <div className="text-[10px] text-stone-700 bg-stone-50 p-1.5 rounded border border-stone-200">
-                                  <strong className="text-brand-dark">Best for: </strong>
-                                  {item.bestFor}
+                                  <h6 className="font-serif font-semibold text-xs text-brand-dark line-clamp-2" title={item.name}>
+                                    {item.name}
+                                  </h6>
+                                  <p className="text-xs font-bold text-amber-800 my-1">
+                                    {item.price ? formatCurrency(item.price) : 'Price unverified'}
+                                  </p>
+
+                                  {item.highlights && item.highlights.length > 0 && (
+                                    <ul className="text-[10px] text-stone-600 space-y-1 mb-2">
+                                      {item.highlights.slice(0, 3).map((h, i) => (
+                                        <li key={i} className="flex items-center gap-1">
+                                          <span className="w-1 h-1 rounded-full bg-amber-500"></span>
+                                          <span className="line-clamp-1">{h}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
                                 </div>
-                              )}
-                            </div>
-                          ))}
+
+                                <div className="space-y-1.5 mt-2">
+                                  {item.bestFor && (
+                                    <div className="text-[9.5px] text-stone-700 bg-stone-50 p-1.5 rounded border border-stone-200">
+                                      <strong className="text-brand-dark">Best for: </strong>
+                                      {item.bestFor}
+                                    </div>
+                                  )}
+
+                                  {/* Store link or product link */}
+                                  {isExternal && item.sourceUrl && (
+                                    <a
+                                      href={item.sourceUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-[10px] text-blue-700 hover:text-blue-900 font-semibold"
+                                    >
+                                      <span>View on {item.sourceWebsite || 'External Store'}</span>
+                                      <ExternalLink className="w-2.5 h-2.5" />
+                                    </a>
+                                  )}
+                                  {!isExternal && (
+                                    <Link
+                                      to={item.sourceUrl || `/product/${item.id}`}
+                                      className="inline-flex items-center gap-1 text-[10px] text-emerald-700 hover:text-emerald-900 font-semibold"
+                                    >
+                                      <span>View ShopSmart Product</span>
+                                      <ArrowRight className="w-2.5 h-2.5" />
+                                    </Link>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
 
                         {/* AI Verdict */}
