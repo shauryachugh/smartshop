@@ -47,6 +47,7 @@ export default function AIAssistantWidget() {
 
   const suggestedPrompts = [
     'Find products under ₹1,000.',
+    'Compare external product links.',
     'Recommend a smartphone.',
     'Suggest car care products.',
     'Compare products.',

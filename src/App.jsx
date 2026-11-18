@@ -17,6 +17,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Profile from './pages/Profile';
 import AdminDashboard from './pages/AdminDashboard';
+import ExternalComparison from './pages/ExternalComparison';
 import NotFound from './pages/NotFound';
 import { AuthProvider } from './context/AuthContext';
 import { WishlistProvider } from './context/WishlistContext';
@@ -49,6 +50,7 @@ export default function App() {
                   <Route path="/wishlist" element={<Wishlist />} />
                   <Route path="/about" element={<About />} />
                   <Route path="/contact" element={<Contact />} />
+                  <Route path="/compare" element={<ExternalComparison />} />
                   
                   {/* Supabase Authentication Routes */}
                   <Route path="/login" element={<Login />} />

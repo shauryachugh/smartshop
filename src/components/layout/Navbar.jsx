@@ -25,6 +25,7 @@ export default function Navbar() {
   const navLinks = [
     { name: 'Home', path: '/' },
     { name: 'Shop', path: '/shop' },
+    { name: 'Compare Any Product', path: '/compare' },
     { name: 'Categories', path: '/shop#categories' },
     { name: 'About', path: '/about' },
     { name: 'Contact', path: '/contact' },
@@ -47,6 +48,13 @@ export default function Navbar() {
         <span>
           <strong className="text-white font-medium">ShopSmart AI</strong> — Indian Market Platform · Free Delivery Above ₹999
         </span>
+        <span className="hidden sm:inline text-stone-500">|</span>
+        <Link
+          to="/compare"
+          className="hidden sm:inline-flex items-center gap-1 text-amber-400 hover:text-amber-300 font-semibold underline underline-offset-2 ml-1"
+        >
+          <span>Compare Any Product (URL)</span>
+        </Link>
         <span className="hidden sm:inline text-stone-500">|</span>
         <button
           onClick={() => setIsAIAssistantOpen(true)}

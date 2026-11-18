@@ -100,6 +100,11 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
+                <Link to="/compare" className="text-amber-400 hover:text-amber-300 font-medium transition-colors flex items-center gap-1">
+                  <span>Compare Any Product (URL)</span>
+                </Link>
+              </li>
+              <li>
                 <Link to="/about" className="hover:text-amber-400 transition-colors">
                   About Project
                 </Link>

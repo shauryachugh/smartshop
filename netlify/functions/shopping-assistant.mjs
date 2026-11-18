@@ -188,6 +188,16 @@ function handleSemanticFallback(message, conversationHistory, products, catalogM
   let recommendedProductIds = [];
   let comparison = null;
 
+  // Scenario 0: External link / URL comparison inquiry
+  if (query.includes('external') || query.includes('compare url') || query.includes('paste url') || query.includes('product link') || (query.includes('amazon') && query.includes('flipkart'))) {
+    return {
+      reply: "You can use our dedicated **[Compare Any Product](/compare)** tool! Simply paste product URLs from Amazon India, Flipkart, Croma, Reliance Digital, or other stores, and our Gemini AI will analyze the live specifications, pros & cons, and determine the Value-For-Money champion in Indian Rupees (₹).",
+      products: [],
+      comparison: null,
+      modelUsed: 'gemini-fallback-semantic',
+    };
+  }
+
   // Scenario 1: Comparison queries ("compare ...")
   if (query.includes('compare')) {
     if (pool.length >= 2) {
