@@ -12,11 +12,20 @@ import {
   X, 
   ArrowLeft,
   Loader2,
-  PackageCheck
+  PackageCheck,
+  MessageCircle,
+  Phone,
+  Share2,
+  MapPin
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { formatCurrency } from '../lib/utils';
+import { 
+  validateIndianMobile, 
+  formatIndianMobileForDisplay, 
+  generateWhatsAppReceiptUrl 
+} from '../lib/whatsapp';
 import Badge from '../components/common/Badge';
 
 export default function Cart() {
@@ -35,7 +44,7 @@ export default function Cart() {
     applyPromoCode,
     removePromoCode,
     cartCount,
-    placeSimulatedOrder,
+    placeOrder,
   } = useCart();
 
   const { user, profile } = useAuth();
@@ -47,6 +56,7 @@ export default function Cart() {
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [confirmedOrder, setConfirmedOrder] = useState(null);
+  const [phoneError, setPhoneError] = useState(null);
 
   const [shippingForm, setShippingForm] = useState({
     name: '',
@@ -57,6 +67,9 @@ export default function Cart() {
     state: 'Karnataka',
     pincode: '560001',
   });
+
+  // Keep a snapshot of the total for the order modal before cart might clear
+  const orderTotalSnapshot = finalTotal;
 
   useEffect(() => {
     if (user) {
@@ -80,15 +93,30 @@ export default function Cart() {
     }
   };
 
+  const handlePhoneChange = (val) => {
+    setShippingForm({ ...shippingForm, phone: val });
+    if (phoneError) {
+      setPhoneError(null);
+    }
+  };
+
   const handleConfirmOrder = async (e) => {
     e.preventDefault();
+    
+    // Validate Indian WhatsApp / Mobile number strictly
+    const phoneValidation = validateIndianMobile(shippingForm.phone);
+    if (!phoneValidation.isValid) {
+      setPhoneError(phoneValidation.error);
+      return;
+    }
+    setPhoneError(null);
     setCheckoutLoading(true);
 
     try {
-      const result = await placeSimulatedOrder({
+      const result = await placeOrder({
         customerName: shippingForm.name || 'ShopSmart Customer',
         customerEmail: shippingForm.email || (user ? user.email : 'guest@shopsmart-ai.in'),
-        customerPhone: shippingForm.phone,
+        customerPhone: phoneValidation.normalized,
         shippingAddress: {
           address: shippingForm.address,
           city: shippingForm.city,
@@ -108,31 +136,137 @@ export default function Cart() {
     }
   };
 
+  // ----------------------------------------------------------------------
+  // Order Confirmation Screen with WhatsApp Receipt
+  // ----------------------------------------------------------------------
   if (confirmedOrder) {
+    const orderPhone = confirmedOrder.customerPhone || shippingForm.phone;
+    const whatsAppUrl = generateWhatsAppReceiptUrl(orderPhone, {
+      orderId: confirmedOrder.orderId,
+      customerName: confirmedOrder.customerName || shippingForm.name,
+      items: confirmedOrder.items || [],
+      totalAmount: confirmedOrder.totalAmount || orderTotalSnapshot,
+      shippingAddress: confirmedOrder.shippingAddress || shippingForm,
+      orderStatus: confirmedOrder.status || 'Confirmed',
+      createdAt: confirmedOrder.createdAt || new Date(),
+    });
+
+    const displayPhone = formatIndianMobileForDisplay(orderPhone);
+
     return (
-      <div className="max-w-xl mx-auto px-4 py-20 text-center space-y-6">
-        <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
-          <PackageCheck className="w-8 h-8" />
+      <div className="max-w-2xl mx-auto px-4 py-16 sm:py-20 text-center space-y-7 animate-in fade-in">
+        <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-soft-sm">
+          <CheckCircle2 className="w-9 h-9" />
         </div>
-        <Badge variant="success">Demonstration Order Recorded</Badge>
-        <h1 className="font-serif text-3xl font-semibold text-brand-dark">
-          Order Confirmed!
-        </h1>
-        <div className="p-4 rounded-2xl bg-brand-sand/50 border border-brand-border text-xs space-y-1 text-stone-700">
-          <div>Order ID: <strong className="font-mono text-brand-dark">{confirmedOrder.orderId}</strong></div>
-          <div>Total Amount: <strong>{formatCurrency(finalTotal)}</strong></div>
-          <div className="text-[11px] text-stone-500 pt-1">
-            Status: <span className="text-emerald-700 font-semibold uppercase">{confirmedOrder.status} in Supabase</span>
+
+        <div>
+          <Badge variant="success" className="mb-2">Order Placed Successfully</Badge>
+          <h1 className="font-serif text-3xl sm:text-4xl font-semibold text-brand-dark">
+            Order Confirmation
+          </h1>
+          <p className="text-xs text-brand-muted mt-2 max-w-md mx-auto">
+            Thank you for shopping with ShopSmart AI. Your order has been placed and recorded into the system.
+          </p>
+        </div>
+
+        {/* Order Details Receipt Card */}
+        <div className="p-6 rounded-3xl bg-white border border-brand-border text-xs text-left space-y-4 shadow-soft-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-stone-100 gap-2">
+            <div>
+              <span className="text-[10px] uppercase font-bold text-stone-400 block">Order Number</span>
+              <strong className="font-mono text-sm text-brand-dark">#{confirmedOrder.orderId}</strong>
+            </div>
+            <div className="sm:text-right">
+              <span className="text-[10px] uppercase font-bold text-stone-400 block">Order Total</span>
+              <strong className="text-base font-serif text-amber-900">
+                {formatCurrency(confirmedOrder.totalAmount || orderTotalSnapshot)}
+              </strong>
+            </div>
+          </div>
+
+          {/* Purchased Items List */}
+          {confirmedOrder.items && confirmedOrder.items.length > 0 && (
+            <div className="space-y-2 py-1">
+              <span className="text-[11px] font-semibold text-stone-500 block uppercase">
+                Items in This Order ({confirmedOrder.items.length})
+              </span>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {confirmedOrder.items.map((item, idx) => (
+                  <div key={idx} className="flex justify-between items-center text-xs text-stone-700">
+                    <span className="line-clamp-1 flex-1 pr-2">
+                      {item.quantity}x {item.product_name || item.name}
+                    </span>
+                    <span className="font-semibold text-brand-dark shrink-0">
+                      {formatCurrency(Number(item.subtotal || (item.unit_price || item.price) * (item.quantity || 1)))}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Destination Details */}
+          <div className="pt-3 border-t border-stone-100 flex items-start gap-2 text-stone-600 text-[11px]">
+            <MapPin className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-medium text-stone-700">
+                Delivering to: {confirmedOrder.customerName || shippingForm.name} ({displayPhone})
+              </span>
+              <p className="text-stone-500">
+                {confirmedOrder.shippingAddress?.address || shippingForm.address},{' '}
+                {confirmedOrder.shippingAddress?.city || shippingForm.city},{' '}
+                {confirmedOrder.shippingAddress?.state || shippingForm.state} -{' '}
+                {confirmedOrder.shippingAddress?.pincode || shippingForm.pincode}
+              </p>
+            </div>
           </div>
         </div>
-        <p className="text-xs text-brand-muted leading-relaxed">
-          This order has been recorded into the Supabase database. You can track it in your customer profile if signed in.
-        </p>
-        <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+
+        {/* WhatsApp Receipt Card */}
+        <div className="p-6 rounded-3xl bg-emerald-50/70 border border-emerald-200/80 text-left space-y-3.5 shadow-soft-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-[#25D366] text-white flex items-center justify-center shrink-0 shadow-sm">
+              <MessageCircle className="w-5 h-5 fill-white" />
+            </div>
+            <div>
+              <h4 className="font-serif text-base font-semibold text-stone-900">
+                WhatsApp Order Receipt
+              </h4>
+              <p className="text-[11px] text-stone-600">
+                Send your order receipt directly to your WhatsApp ({displayPhone || 'your mobile'}) for instant records.
+              </p>
+            </div>
+          </div>
+
+          <div className="pt-1">
+            {whatsAppUrl ? (
+              <a
+                href={whatsAppUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2.5 w-full sm:w-auto px-6 py-3 rounded-full bg-[#25D366] hover:bg-[#20bd5a] text-white text-xs font-bold shadow-md hover:shadow-lg transition-all active:scale-98"
+              >
+                <MessageCircle className="w-4 h-4 fill-white" />
+                <span>Send Order Details on WhatsApp</span>
+              </a>
+            ) : (
+              <p className="text-xs text-amber-800">
+                Please ensure a valid 10-digit Indian WhatsApp number was provided to enable WhatsApp receipt.
+              </p>
+            )}
+          </div>
+
+          <p className="text-[10px] text-stone-500 leading-relaxed">
+            Note: Clicking opens WhatsApp with a pre-formatted order confirmation message. You can review the receipt and press Send in WhatsApp.
+          </p>
+        </div>
+
+        {/* Navigation Action Links */}
+        <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
           {user && (
             <Link
               to="/profile"
-              className="px-6 py-3 rounded-full bg-brand-dark text-white text-xs font-semibold hover:bg-brand-charcoal"
+              className="px-6 py-3 rounded-full bg-brand-dark text-white text-xs font-semibold hover:bg-brand-charcoal transition-colors shadow-soft-sm"
             >
               View Order in Profile
             </Link>
@@ -140,7 +274,7 @@ export default function Cart() {
           <Link
             to="/shop"
             onClick={() => setConfirmedOrder(null)}
-            className="px-6 py-3 rounded-full border border-brand-border bg-white text-brand-dark text-xs font-semibold hover:bg-stone-50"
+            className="px-6 py-3 rounded-full border border-brand-border bg-white text-brand-dark text-xs font-semibold hover:bg-stone-50 transition-colors shadow-soft-sm"
           >
             Continue Shopping
           </Link>
@@ -149,6 +283,9 @@ export default function Cart() {
     );
   }
 
+  // ----------------------------------------------------------------------
+  // Empty Cart Screen
+  // ----------------------------------------------------------------------
   if (cart.length === 0) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20 text-center space-y-6">
@@ -174,6 +311,9 @@ export default function Cart() {
     );
   }
 
+  // ----------------------------------------------------------------------
+  // Active Cart View
+  // ----------------------------------------------------------------------
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-8">
       
@@ -382,16 +522,16 @@ export default function Cart() {
             onClick={() => setShowCheckoutModal(true)}
             className="w-full py-3.5 rounded-full bg-brand-dark text-white text-xs font-bold hover:bg-brand-charcoal transition-all shadow-soft-md flex items-center justify-center gap-2 active:scale-98"
           >
-            <span>Proceed to Simulated Checkout</span>
+            <span>Proceed to Quick Checkout</span>
             <ArrowRight className="w-4 h-4 text-amber-400" />
           </button>
 
           <div className="space-y-1.5 text-center text-[10px] text-stone-500 pt-2">
             <div className="flex items-center justify-center gap-1.5">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Demonstration Order · Connects to Supabase Database</span>
+              <span>Fast & Secure Checkout · Supabase Backed</span>
             </div>
-            <p>Phase 3 Supabase simulation. No actual payment charged.</p>
+            <p>Express test checkout. No actual credit card or UPI account will be billed.</p>
           </div>
 
         </div>
@@ -410,12 +550,12 @@ export default function Cart() {
             </button>
 
             <div>
-              <Badge variant="amber" className="mb-1">Simulated Checkout</Badge>
+              <Badge variant="amber" className="mb-1">Quick Checkout</Badge>
               <h3 className="font-serif text-2xl font-semibold text-brand-dark">
                 Delivery Details
               </h3>
               <p className="text-xs text-brand-muted mt-1">
-                Total to be recorded in Supabase: <strong className="text-brand-dark">{formatCurrency(finalTotal)}</strong>
+                Order Total: <strong className="text-brand-dark">{formatCurrency(finalTotal)}</strong>
               </p>
             </div>
 
@@ -445,16 +585,25 @@ export default function Cart() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="font-semibold text-brand-dark">Phone</label>
+                  <label className="font-semibold text-brand-dark">WhatsApp / Mobile Number *</label>
                   <input
                     type="tel"
+                    required
                     value={shippingForm.phone}
-                    onChange={(e) => setShippingForm({ ...shippingForm, phone: e.target.value })}
-                    placeholder="+91 98765 43210"
-                    className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:outline-none focus:border-amber-600 focus:bg-white"
+                    onChange={(e) => handlePhoneChange(e.target.value)}
+                    placeholder="10-digit (e.g. 9876543210)"
+                    className={`w-full p-2.5 rounded-xl border ${
+                      phoneError ? 'border-red-500 bg-red-50/50' : 'border-stone-200 bg-stone-50'
+                    } focus:outline-none focus:border-amber-600 focus:bg-white`}
                   />
                 </div>
               </div>
+
+              {phoneError && (
+                <p className="text-[11px] text-red-600 font-medium bg-red-50 p-2 rounded-lg border border-red-200">
+                  {phoneError}
+                </p>
+              )}
 
               <div className="space-y-1">
                 <label className="font-semibold text-brand-dark">Shipping Address *</label>
@@ -510,10 +659,10 @@ export default function Cart() {
                   {checkoutLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
-                      <span>Recording Order in Supabase...</span>
+                      <span>Placing Your Order...</span>
                     </>
                   ) : (
-                    <span>Confirm Demonstration Order ({formatCurrency(finalTotal)})</span>
+                    <span>Confirm & Place Order ({formatCurrency(finalTotal)})</span>
                   )}
                 </button>
               </div>

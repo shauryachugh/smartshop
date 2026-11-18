@@ -4,11 +4,60 @@
  */
 
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
-import { PRODUCTS, CATEGORIES } from '../data/mockProducts.js';
+import { PRODUCTS } from '../data/mockProducts.js';
+import { getLocalCustomerOrders } from './orderService.js';
 
 const ADMIN_STORAGE_KEY = 'shopsmart_admin_session_v1';
 const LOCAL_PRODUCTS_KEY = 'shopsmart_custom_products_v1';
 const LOCAL_ORDERS_KEY = 'shopsmart_orders_storage_v1';
+
+/**
+ * Determine whether an order is a seeded/mock demo order or a real customer order.
+ *
+ * Seed orders are identified by:
+ * 1. Explicit seed marker: `is_seeded === true` or `order_source === 'sample_seed'`
+ * 2. Shipping address metadata: `is_seeded: true` or `order_source: 'sample_seed'`
+ * 3. Known seed IDs: `ord-in-101`, `ord-in-102`, `ord-in-103`, or UUID prefix `b0000001-`
+ * 4. Known seed customer emails: `vikram.rathore@example.in`, `ananya.d@example.in`, `dr.kabir@example.in`
+ */
+export function isSeededOrder(order) {
+  if (!order || typeof order !== 'object') return false;
+
+  // 1. Explicit seed flags
+  if (order.is_seeded === true || order.order_source === 'sample_seed') {
+    return true;
+  }
+  if (
+    order.shipping_address &&
+    typeof order.shipping_address === 'object' &&
+    (order.shipping_address.is_seeded === true || order.shipping_address.order_source === 'sample_seed')
+  ) {
+    return true;
+  }
+
+  // 2. Known seed IDs
+  const id = String(order.id || '').toLowerCase().trim();
+  if (
+    id === 'ord-in-101' ||
+    id === 'ord-in-102' ||
+    id === 'ord-in-103' ||
+    id.startsWith('b0000001-')
+  ) {
+    return true;
+  }
+
+  // 3. Known seed mock customer emails
+  const email = String(order.customer_email || '').toLowerCase().trim();
+  if (
+    email === 'vikram.rathore@example.in' ||
+    email === 'ananya.d@example.in' ||
+    email === 'dr.kabir@example.in'
+  ) {
+    return true;
+  }
+
+  return false;
+}
 
 export const adminService = {
   /**
@@ -223,9 +272,16 @@ export const adminService = {
   },
 
   /**
-   * Fetch all orders for admin review
+   * Fetch all genuine customer orders for admin review.
+   *
+   * STRICT POLICY:
+   * Only returns orders placed through customer checkout.
+   * Excludes all seeded demo/sample orders.
+   * If there are no real customer orders, returns an empty array [].
    */
   async getAdminOrders() {
+    let supabaseOrders = [];
+
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase
@@ -233,99 +289,61 @@ export const adminService = {
           .select('*, order_items(*)')
           .order('created_at', { ascending: false });
 
-        if (!error && Array.isArray(data) && data.length > 0) {
-          return data;
+        if (!error && Array.isArray(data)) {
+          // Filter out seeded/sample orders
+          supabaseOrders = data.filter((o) => !isSeededOrder(o));
         }
       } catch (err) {
-        console.warn('[adminService] Supabase orders notice:', err.message);
+        console.warn('[adminService] Supabase orders fetch notice:', err.message);
       }
     }
 
-    // Default simulated sample orders for demonstration
+    // Merge with genuine local customer orders placed via web checkout
+    const localCustomerOrders = getLocalCustomerOrders().filter((o) => !isSeededOrder(o));
+
+    // Also sanitize legacy orders cache in case sample orders were saved previously
+    let legacySavedOrders = [];
     try {
-      const saved = JSON.parse(localStorage.getItem(LOCAL_ORDERS_KEY) || '[]');
-      if (saved.length > 0) return saved;
+      const legacyRaw = JSON.parse(localStorage.getItem(LOCAL_ORDERS_KEY) || '[]');
+      legacySavedOrders = Array.isArray(legacyRaw)
+        ? legacyRaw.filter((o) => !isSeededOrder(o))
+        : [];
+      // Clean up legacy storage to purge old sample orders
+      localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(legacySavedOrders));
     } catch (e) {}
 
-    const sampleOrders = [
-      {
-        id: 'ord-in-101',
-        customer_name: 'Vikramaditya Rathore',
-        customer_email: 'vikram.rathore@example.in',
-        customer_phone: '+91 98765 43210',
-        total_amount: 19999,
-        order_status: 'Processing',
-        created_at: new Date(Date.now() - 3600000 * 4).toISOString(),
-        shipping_address: {
-          address: 'Villa 14, Palm Meadows, Whitefield',
-          city: 'Bengaluru',
-          state: 'Karnataka',
-          pincode: '560066',
-        },
-        items: [
-          {
-            product_name: 'OnePlus Nord CE 4 5G (8GB/128GB)',
-            quantity: 1,
-            unit_price: 19999,
-          },
-        ],
-      },
-      {
-        id: 'ord-in-102',
-        customer_name: 'Ananya Deshmukh',
-        customer_email: 'ananya.d@example.in',
-        customer_phone: '+91 98220 11223',
-        total_amount: 3298,
-        order_status: 'Delivered',
-        created_at: new Date(Date.now() - 3600000 * 28).toISOString(),
-        shipping_address: {
-          address: 'Flat 402, Sea Green Apts, Worli',
-          city: 'Mumbai',
-          state: 'Maharashtra',
-          pincode: '400018',
-        },
-        items: [
-          {
-            product_name: 'EchoPulse True Wireless Earbuds with ANC',
-            quantity: 1,
-            unit_price: 1899,
-          },
-          {
-            product_name: 'WaveX 3-in-1 Ceramic Coating (500ml)',
-            quantity: 1,
-            unit_price: 1299,
-          },
-        ],
-      },
-      {
-        id: 'ord-in-103',
-        customer_name: 'Dr. Kabir Sen',
-        customer_email: 'dr.kabir@example.in',
-        customer_phone: '+91 94331 55667',
-        total_amount: 125000,
-        order_status: 'Shipped',
-        created_at: new Date(Date.now() - 3600000 * 52).toISOString(),
-        shipping_address: {
-          address: 'B-74, Salt Lake Sector 1',
-          city: 'Kolkata',
-          state: 'West Bengal',
-          pincode: '700064',
-        },
-        items: [
-          {
-            product_name: 'TitanBook Pro M2 Creator Laptop (16GB/1TB)',
-            quantity: 1,
-            unit_price: 125000,
-          },
-        ],
-      },
-    ];
+    // Combine and deduplicate by order ID
+    const combinedMap = new Map();
 
-    try {
-      localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(sampleOrders));
-    } catch (e) {}
+    // 1. Supabase orders first
+    supabaseOrders.forEach((ord) => {
+      if (ord?.id && !isSeededOrder(ord)) {
+        combinedMap.set(ord.id, ord);
+      }
+    });
 
-    return sampleOrders;
+    // 2. Customer checkout orders
+    localCustomerOrders.forEach((ord) => {
+      if (ord?.id && !combinedMap.has(ord.id) && !isSeededOrder(ord)) {
+        combinedMap.set(ord.id, ord);
+      }
+    });
+
+    // 3. Sanitized legacy orders
+    legacySavedOrders.forEach((ord) => {
+      if (ord?.id && !combinedMap.has(ord.id) && !isSeededOrder(ord)) {
+        combinedMap.set(ord.id, ord);
+      }
+    });
+
+    const genuineOrders = Array.from(combinedMap.values());
+
+    // Sort descending by created_at date
+    genuineOrders.sort(
+      (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+    );
+
+    return genuineOrders;
   },
 
   /**
@@ -338,30 +356,68 @@ export const adminService = {
           .from('orders')
           .update({ order_status: newStatus })
           .eq('id', orderId);
-        if (!error) return { success: true };
+        if (!error) {
+          // Also update local storage cache if present
+          this._updateLocalOrderStatus(orderId, newStatus);
+          return { success: true };
+        }
       } catch (err) {
         console.warn('[adminService] Supabase order status update notice:', err.message);
       }
     }
 
-    try {
-      const orders = await this.getAdminOrders();
-      const updated = orders.map((o) => (o.id === orderId ? { ...o, order_status: newStatus } : o));
-      localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(updated));
-      return { success: true };
-    } catch (e) {
-      return { success: false, error: e.message };
-    }
+    this._updateLocalOrderStatus(orderId, newStatus);
+    return { success: true };
   },
 
   /**
-   * Calculate real-time business telemetry and AI business insights
+   * Internal helper to update status in local customer orders cache
+   */
+  _updateLocalOrderStatus(orderId, newStatus) {
+    try {
+      const orders = getLocalCustomerOrders();
+      const updated = orders.map((o) => (o.id === orderId ? { ...o, order_status: newStatus } : o));
+      localStorage.setItem('shopsmart_real_customer_orders_v1', JSON.stringify(updated));
+    } catch (e) {}
+
+    try {
+      const legacy = JSON.parse(localStorage.getItem(LOCAL_ORDERS_KEY) || '[]');
+      const updated = legacy.map((o) => (o.id === orderId ? { ...o, order_status: newStatus } : o));
+      localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(updated));
+    } catch (e) {}
+  },
+
+  /**
+   * Calculate real-time business telemetry and AI business insights.
+   *
+   * STRICT POLICY:
+   * - Only counts genuine customer orders (seeded demo orders excluded).
+   * - Excludes cancelled orders from total revenue.
+   * - Never filters out real orders due to small amount or unusual details.
    */
   calculateAnalytics(products, orders) {
-    const totalRevenue = orders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
-    const totalInventoryUnits = products.reduce((sum, p) => sum + (Number(p.stockCount || p.stock_quantity) || 0), 0);
-    const lowStockCount = products.filter((p) => (Number(p.stockCount || p.stock_quantity) || 0) < 15).length;
-    const avgRating = (products.reduce((sum, p) => sum + (Number(p.rating) || 4.5), 0) / (products.length || 1)).toFixed(1);
+    // 1. Strictly filter to real, non-seeded customer orders
+    const genuineOrders = (orders || []).filter((o) => !isSeededOrder(o));
+
+    // 2. Exclude cancelled orders from revenue calculation
+    const nonCancelledOrders = genuineOrders.filter(
+      (o) => (o.order_status || '').toLowerCase() !== 'cancelled'
+    );
+    const totalRevenue = nonCancelledOrders.reduce(
+      (sum, o) => sum + (Number(o.total_amount) || 0),
+      0
+    );
+
+    const totalInventoryUnits = products.reduce(
+      (sum, p) => sum + (Number(p.stockCount ?? p.stock_quantity ?? 0) || 0),
+      0
+    );
+    const lowStockCount = products.filter(
+      (p) => (Number(p.stockCount ?? p.stock_quantity ?? 0) || 0) < 15
+    ).length;
+    const avgRating = (
+      products.reduce((sum, p) => sum + (Number(p.rating) || 4.5), 0) / (products.length || 1)
+    ).toFixed(1);
 
     // Category distribution
     const categoryStats = {};
@@ -371,14 +427,15 @@ export const adminService = {
         categoryStats[cat] = { count: 0, inventoryValue: 0 };
       }
       categoryStats[cat].count += 1;
-      categoryStats[cat].inventoryValue += (Number(p.price) || 0) * (Number(p.stockCount || p.stock_quantity) || 10);
+      categoryStats[cat].inventoryValue +=
+        (Number(p.price) || 0) * (Number(p.stockCount ?? p.stock_quantity ?? 0) || 10);
     });
 
     const aiInsights = [
       {
         type: 'growth',
         title: 'High-Demand 5G Smartphone Surge',
-        detail: 'Smartphones in the ₹15,000–₹20,000 bracket (OnePlus Nord CE 4, iQOO Z9s) are generating 42% of customer search queries. Recommend increasing minimum stock thresholds to 50 units.',
+        detail: 'Smartphones in the ₹15,000–₹25,000 bracket (OnePlus Nord CE 4, iQOO Z9s, Realme Narzo) are generating 42% of customer search queries. Recommend maintaining at least 50 units per model.',
       },
       {
         type: 'alert',
@@ -394,7 +451,7 @@ export const adminService = {
 
     return {
       totalRevenue,
-      totalOrders: orders.length,
+      totalOrders: genuineOrders.length,
       totalProducts: products.length,
       totalInventoryUnits,
       lowStockCount,

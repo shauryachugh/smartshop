@@ -341,14 +341,14 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl p-5 border border-brand-border shadow-soft-sm space-y-2">
           <div className="flex items-center justify-between text-stone-500 text-xs font-medium">
-            <span>Catalogue Revenue</span>
+            <span>Customer Revenue</span>
             <TrendingUp className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="text-xl sm:text-2xl font-serif font-bold text-brand-dark">
             {formatCurrency(analytics.totalRevenue)}
           </div>
           <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-medium inline-block">
-            {orders.length} Verified Orders
+            {orders.length} Real Customer {orders.length === 1 ? 'Order' : 'Orders'}
           </span>
         </div>
 
@@ -398,7 +398,7 @@ export default function AdminDashboard() {
           { id: 'analytics', label: 'AI Business Analytics', icon: Sparkles },
           { id: 'products', label: 'Product Catalogue CRUD', icon: Package },
           { id: 'inventory', label: 'Inventory Management', icon: ShieldCheck },
-          { id: 'orders', label: 'Order Fulfillment', icon: ShoppingBag },
+          { id: 'orders', label: `Customer Orders (${orders.length})`, icon: ShoppingBag },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -684,84 +684,139 @@ export default function AdminDashboard() {
               Customer Orders & Dispatch Pipeline
             </h3>
             <p className="text-xs text-brand-muted mt-0.5">
-              Track customer order statuses, payment totals in ₹, and shipping addresses across India.
+              Real customer orders submitted through web checkout. Seed demo orders are automatically excluded.
             </p>
           </div>
 
-          <div className="space-y-4">
-            {orders.map((order) => (
-              <div
-                key={order.id}
-                className="p-5 rounded-2xl border border-stone-200 bg-stone-50/50 space-y-3"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-200/60 pb-3">
-                  <div>
-                    <span className="text-[10px] font-mono text-stone-400">Order ID: {order.id}</span>
-                    <h5 className="font-serif font-semibold text-sm text-brand-dark">
-                      {order.customer_name || 'Guest Shopper'}
-                    </h5>
-                    <p className="text-[11px] text-stone-500">
-                      {order.customer_email} · {order.customer_phone || '+91 Unspecified'}
-                    </p>
-                  </div>
+          {orders.length === 0 ? (
+            <div className="p-12 text-center bg-stone-50/70 rounded-3xl border border-stone-200/80 space-y-3">
+              <div className="w-14 h-14 rounded-2xl bg-stone-100 text-stone-400 flex items-center justify-center mx-auto">
+                <ShoppingBag className="w-7 h-7" />
+              </div>
+              <h4 className="font-serif text-base font-semibold text-brand-dark">
+                No Customer Orders Yet
+              </h4>
+              <p className="text-xs text-brand-muted max-w-md mx-auto leading-relaxed">
+                When customers place orders through the checkout bag, their real names, contact numbers, purchased items, individual unit prices, and delivery addresses will appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {orders.map((order) => {
+                const isCancelled = (order.order_status || '').toLowerCase() === 'cancelled';
+                const itemsList = order.items || order.order_items || [];
 
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <div className="text-xs font-bold text-brand-dark">
-                        {formatCurrency(order.total_amount)}
+                return (
+                  <div
+                    key={order.id}
+                    className={`p-5 rounded-2xl border ${
+                      isCancelled ? 'border-red-200 bg-red-50/20' : 'border-stone-200 bg-stone-50/50'
+                    } space-y-3 transition-colors`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-200/60 pb-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-mono text-stone-500 font-bold">
+                            #{order.id}
+                          </span>
+                          <span className="text-[10px] px-2 py-0.2 rounded-full bg-emerald-100 text-emerald-800 font-medium">
+                            Real Customer Order
+                          </span>
+                        </div>
+                        <h5 className="font-serif font-semibold text-sm text-brand-dark mt-0.5">
+                          {order.customer_name || 'Customer'}
+                        </h5>
+                        <p className="text-[11px] text-stone-500">
+                          {order.customer_email} · <span className="font-medium text-stone-700">{order.customer_phone || 'Unspecified'}</span>
+                        </p>
                       </div>
-                      <span className="text-[10px] text-stone-400">
-                        {new Date(order.created_at).toLocaleDateString('en-IN', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric',
-                        })}
-                      </span>
+
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <div className={`text-xs font-bold ${isCancelled ? 'line-through text-stone-400' : 'text-brand-dark'}`}>
+                            {formatCurrency(order.total_amount)}
+                          </div>
+                          {isCancelled && (
+                            <span className="text-[9px] text-red-600 block font-medium">
+                              Excluded from revenue
+                            </span>
+                          )}
+                          <span className="text-[10px] text-stone-400 block">
+                            {new Date(order.created_at || Date.now()).toLocaleDateString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        </div>
+
+                        <select
+                          value={order.order_status || 'confirmed'}
+                          onChange={(e) => handleOrderStatusChange(order.id, e.target.value)}
+                          className={`text-xs py-1.5 px-2.5 rounded-xl border ${
+                            isCancelled
+                              ? 'border-red-300 bg-red-50 text-red-800 font-bold'
+                              : 'border-stone-200 bg-white font-medium text-stone-800'
+                          } shadow-sm focus:outline-none focus:border-amber-600`}
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="confirmed">Confirmed</option>
+                          <option value="processing">Processing</option>
+                          <option value="shipped">Shipped</option>
+                          <option value="delivered">Delivered</option>
+                          <option value="cancelled">Cancelled</option>
+                        </select>
+                      </div>
                     </div>
 
-                    <select
-                      value={order.order_status || 'Pending'}
-                      onChange={(e) => handleOrderStatusChange(order.id, e.target.value)}
-                      className="text-xs py-1.5 px-2.5 rounded-xl border border-stone-200 bg-white font-medium text-stone-800 shadow-sm focus:outline-none focus:border-amber-600"
-                    >
-                      <option value="Pending">Pending</option>
-                      <option value="Processing">Processing</option>
-                      <option value="Shipped">Shipped</option>
-                      <option value="Delivered">Delivered</option>
-                      <option value="Cancelled">Cancelled</option>
-                    </select>
-                  </div>
-                </div>
+                    {/* Items & Shipping */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs pt-1">
+                      <div>
+                        <h6 className="font-semibold text-stone-600 mb-1.5 flex items-center justify-between">
+                          <span>Purchased Items ({itemsList.length}):</span>
+                          <span className="text-[10px] text-stone-400">Qty × Unit Price</span>
+                        </h6>
+                        <ul className="space-y-1.5 text-stone-700">
+                          {itemsList.map((item, idx) => {
+                            const unitPrice = Number(item.unit_price ?? item.price ?? 0);
+                            const qty = Number(item.quantity) || 1;
+                            const subtotal = Number(item.subtotal ?? unitPrice * qty);
+                            return (
+                              <li key={idx} className="flex justify-between items-center text-xs">
+                                <span className="line-clamp-1 pr-2">
+                                  {qty}x {item.product_name || item.name || 'Product'}
+                                  <span className="text-stone-400 ml-1 text-[11px]">
+                                    (@ {formatCurrency(unitPrice)})
+                                  </span>
+                                </span>
+                                <span className="font-semibold shrink-0">
+                                  {formatCurrency(subtotal)}
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
 
-                {/* Items & Shipping */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs pt-1">
-                  <div>
-                    <h6 className="font-semibold text-stone-600 mb-1">Purchased Items:</h6>
-                    <ul className="space-y-1 text-stone-700">
-                      {(order.items || order.order_items || []).map((item, idx) => (
-                        <li key={idx} className="flex justify-between">
-                          <span>
-                            {item.quantity}x {item.product_name}
-                          </span>
-                          <span className="font-semibold">
-                            {formatCurrency((item.unit_price || 0) * (item.quantity || 1))}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
+                      <div className="space-y-1.5 border-t md:border-t-0 md:border-l md:pl-4 border-stone-200/60 pt-2 md:pt-0">
+                        <h6 className="font-semibold text-stone-600">Shipping Destination:</h6>
+                        <p className="text-stone-700 leading-relaxed text-[11px]">
+                          {order.shipping_address?.address || 'Address provided'},{' '}
+                          {order.shipping_address?.city || ''},{' '}
+                          {order.shipping_address?.state || ''} — {order.shipping_address?.pincode || ''}
+                        </p>
+                        <div className="text-[10px] text-stone-500 pt-1">
+                          Payment Method: <span className="font-mono font-medium text-stone-700">{order.payment_method || 'Online / UPI'}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-
-                  <div>
-                    <h6 className="font-semibold text-stone-600 mb-1">Shipping Destination:</h6>
-                    <p className="text-stone-700 leading-relaxed text-[11px]">
-                      {order.shipping_address?.address}, {order.shipping_address?.city},{' '}
-                      {order.shipping_address?.state} — {order.shipping_address?.pincode}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

@@ -183,13 +183,14 @@ export const CartProvider = ({ children }) => {
   };
 
   // -------------------------
-  // Simulated Checkout to Supabase
+  // Order Placement
   // -------------------------
-  const placeSimulatedOrder = async ({
+  const placeOrder = async ({
     customerName,
     customerEmail,
     customerPhone = '',
     shippingAddress = {},
+    paymentMethod = 'Online / UPI',
   }) => {
     if (cart.length === 0) {
       return { success: false, error: 'Cart is empty' };
@@ -203,14 +204,17 @@ export const CartProvider = ({ children }) => {
       shippingAddress,
       items: cart,
       totalAmount: finalTotal,
+      paymentMethod,
     };
 
-    const result = await orderService.createSimulatedOrder(orderPayload);
+    const result = await orderService.createOrder(orderPayload);
     if (result.success) {
       clearCart();
     }
     return result;
   };
+
+  const placeSimulatedOrder = placeOrder;
 
   const value = {
     cart,
@@ -239,6 +243,7 @@ export const CartProvider = ({ children }) => {
     isInWishlist,
     removeFromWishlist,
     moveToCart,
+    placeOrder,
     placeSimulatedOrder,
     toastMessage,
   };

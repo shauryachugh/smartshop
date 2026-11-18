@@ -13,12 +13,14 @@ import {
   ChevronRight,
   ShieldCheck,
   ShoppingBag,
-  MessageSquare
+  MessageSquare,
+  MessageCircle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { orderService } from '../services/orderService';
 import { enquiryService } from '../services/enquiryService';
 import { formatCurrency } from '../lib/utils';
+import { generateWhatsAppReceiptUrl } from '../lib/whatsapp';
 import Badge from '../components/common/Badge';
 
 export default function Profile() {
@@ -250,19 +252,19 @@ export default function Profile() {
       {activeTab === 'orders' && (
         <div className="space-y-4">
           <h2 className="font-serif text-xl font-semibold text-brand-dark">
-            Simulated Orders ({orders.length})
+            My Orders ({orders.length})
           </h2>
 
           {ordersLoading ? (
             <div className="p-8 text-center text-xs text-brand-muted bg-white rounded-3xl border border-brand-border">
-              Fetching your orders from Supabase...
+              Fetching your orders...
             </div>
           ) : orders.length === 0 ? (
             <div className="p-12 text-center bg-white rounded-3xl border border-brand-border space-y-4">
               <Package className="w-12 h-12 text-stone-300 mx-auto" />
               <h3 className="font-serif text-base font-semibold text-brand-dark">No orders yet</h3>
               <p className="text-xs text-brand-muted max-w-sm mx-auto">
-                Items you checkout via our demo cart will appear here linked to your Supabase customer ID.
+                Items you order will appear here with live order tracking and dispatch status.
               </p>
               <Link
                 to="/shop"
@@ -273,48 +275,80 @@ export default function Profile() {
             </div>
           ) : (
             <div className="space-y-4">
-              {orders.map((ord) => (
-                <div
-                  key={ord.id}
-                  className="bg-white rounded-3xl p-6 border border-brand-border shadow-soft-sm space-y-4"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-stone-100 text-xs">
-                    <div>
-                      <span className="font-mono text-stone-500">Order #{ord.id.slice(0, 8).toUpperCase()}</span>
-                      <span className="text-stone-400 ml-2">
-                        {new Date(ord.created_at).toLocaleDateString('en-IN', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric',
-                        })}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-serif font-bold text-sm text-brand-dark">
-                        {formatCurrency(Number(ord.total_amount))}
-                      </span>
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 uppercase">
-                        {ord.order_status}
-                      </span>
-                    </div>
-                  </div>
+              {orders.map((ord) => {
+                const phone = ord.customer_phone || profile?.phone || '';
+                const items = ord.order_items || ord.items || [];
+                const whatsAppUrl = phone ? generateWhatsAppReceiptUrl(phone, {
+                  orderId: ord.id,
+                  customerName: ord.customer_name || fullName || 'Customer',
+                  items,
+                  totalAmount: ord.total_amount,
+                  shippingAddress: ord.shipping_address,
+                  orderStatus: ord.order_status,
+                  createdAt: ord.created_at,
+                }) : null;
 
-                  {/* Order items preview */}
-                  <div className="space-y-2">
-                    {ord.order_items && ord.order_items.map((item) => (
-                      <div key={item.id} className="flex justify-between text-xs text-stone-600">
-                        <span>{item.quantity}x {item.product_name}</span>
-                        <span className="font-semibold">{formatCurrency(Number(item.subtotal))}</span>
+                return (
+                  <div
+                    key={ord.id}
+                    className="bg-white rounded-3xl p-6 border border-brand-border shadow-soft-sm space-y-4"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-stone-100 text-xs">
+                      <div>
+                        <span className="font-mono text-stone-500">Order #{ord.id.slice(0, 8).toUpperCase()}</span>
+                        <span className="text-stone-400 ml-2">
+                          {new Date(ord.created_at).toLocaleDateString('en-IN', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
+                        </span>
                       </div>
-                    ))}
-                  </div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-serif font-bold text-sm text-brand-dark">
+                          {formatCurrency(Number(ord.total_amount))}
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 uppercase">
+                          {ord.order_status}
+                        </span>
+                      </div>
+                    </div>
 
-                  <div className="pt-2 flex items-center justify-between text-[11px] text-stone-500 border-t border-stone-100">
-                    <span>Delivering to: {ord.shipping_address?.city || 'India'}</span>
-                    <span className="font-mono text-amber-700">Demo Order (Simulated)</span>
+                    {/* Order items preview */}
+                    <div className="space-y-2">
+                      {items.map((item, idx) => (
+                        <div key={item.id || idx} className="flex justify-between text-xs text-stone-600">
+                          <span>{item.quantity}x {item.product_name || item.name}</span>
+                          <span className="font-semibold">
+                            {formatCurrency(Number(item.subtotal || (item.unit_price || 0) * (item.quantity || 1)))}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-stone-500 border-t border-stone-100">
+                      <span>Delivering to: {ord.shipping_address?.city || 'India'}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-stone-600">
+                          Payment: {ord.payment_method || 'Online / UPI'}
+                        </span>
+                        {whatsAppUrl && (
+                          <a
+                            href={whatsAppUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-800 font-semibold text-[11px]"
+                            title="Open WhatsApp Receipt"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5 fill-[#25D366] text-[#25D366]" />
+                            <span>WhatsApp Receipt</span>
+                          </a>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
