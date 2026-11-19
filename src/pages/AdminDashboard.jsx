@@ -108,7 +108,8 @@ export default function AdminDashboard() {
     setAuthLoading(true);
 
     try {
-      const result = await adminService.verifyPasscode(adminPasscode);
+      const cleanPasscode = (adminPasscode || '').trim();
+      const result = await adminService.verifyPasscode(cleanPasscode);
       if (result.success) {
         setIsAdminAuth(true);
         setAdminPasscode('');

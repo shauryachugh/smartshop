@@ -67,7 +67,47 @@ async function runServerlessTests() {
   const emptyRes = await handler(emptyEvent);
   assert(emptyRes.statusCode === 401, 'Empty passcode returns HTTP 401');
 
-  // 4. Custom environment variable override
+  // 4. Accidental whitespace & quotes resilience
+  const whitespaceEvent = {
+    httpMethod: 'POST',
+    body: JSON.stringify({ passcode: '  admin2026  ' }),
+  };
+  const wsRes = await handler(whitespaceEvent);
+  assert(wsRes.statusCode === 200, 'Passcode with accidental whitespace is trimmed and verified (HTTP 200)');
+
+  const quotesEvent = {
+    httpMethod: 'POST',
+    body: JSON.stringify({ passcode: '"admin2026"' }),
+  };
+  const qRes = await handler(quotesEvent);
+  assert(qRes.statusCode === 200, 'Passcode with accidental quotes is normalized and verified (HTTP 200)');
+
+  // 5. Alternate field names (pin, password)
+  const pinEvent = {
+    httpMethod: 'POST',
+    body: JSON.stringify({ pin: 'admin2026' }),
+  };
+  const pinRes = await handler(pinEvent);
+  assert(pinRes.statusCode === 200, 'Accepts { pin: "admin2026" } payload (HTTP 200)');
+
+  const pwdEvent = {
+    httpMethod: 'POST',
+    body: JSON.stringify({ password: 'admin2026' }),
+  };
+  const pwdRes = await handler(pwdEvent);
+  assert(pwdRes.statusCode === 200, 'Accepts { password: "admin2026" } payload (HTTP 200)');
+
+  // 6. Base64 encoded payload support
+  const b64Body = Buffer.from(JSON.stringify({ passcode: 'admin2026' })).toString('base64');
+  const b64Event = {
+    httpMethod: 'POST',
+    isBase64Encoded: true,
+    body: b64Body,
+  };
+  const b64Res = await handler(b64Event);
+  assert(b64Res.statusCode === 200, 'Accepts base64 encoded payload from Netlify CDN (HTTP 200)');
+
+  // 7. Custom environment variable override
   process.env.ADMIN_PASSCODE = 'custom_secret_key_2026';
   const customEvent = {
     httpMethod: 'POST',
@@ -82,7 +122,7 @@ async function runServerlessTests() {
 
 console.log('\n=== TEST SUITE 2: ADMIN SESSION & ROLE PRESERVATION ===');
 
-function runSessionTests() {
+async function runSessionTests() {
   // Mock localStorage for Node environment if not present
   if (typeof globalThis.localStorage === 'undefined') {
     const store = new Map();
@@ -111,6 +151,36 @@ function runSessionTests() {
 
   adminService.clearAdminSession();
   assert(adminService.isAdmin() === false, 'clearAdminSession() revokes session in localStorage');
+
+  // 4. Test verifyPasscode method directly
+  // A. Valid passcode sets session
+  globalThis.fetch = async (url, opts) => {
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ authorized: true, success: true }),
+    };
+  };
+  const loginRes = await adminService.verifyPasscode('admin2026');
+  assert(loginRes.success === true, 'adminService.verifyPasscode("admin2026") succeeds');
+  assert(adminService.isAdmin() === true, 'adminService.isAdmin() is true after successful login');
+
+  // B. Logout
+  adminService.clearAdminSession();
+  assert(adminService.isAdmin() === false, 'adminService.isAdmin() is false after logout');
+
+  // C. Invalid passcode fails and does not set session
+  globalThis.fetch = async (url, opts) => {
+    return {
+      ok: false,
+      status: 401,
+      json: async () => ({ authorized: false, error: 'Invalid admin passcode. Access denied.' }),
+    };
+  };
+  const invalidLoginRes = await adminService.verifyPasscode('wrongpass');
+  assert(invalidLoginRes.success === false, 'adminService.verifyPasscode("wrongpass") fails');
+  assert(invalidLoginRes.error === 'Invalid admin passcode. Access denied.', 'Returns generic error on failure');
+  assert(adminService.isAdmin() === false, 'adminService.isAdmin() remains false on failed login');
 }
 
 console.log('\n=== TEST SUITE 3: FRONTEND HARDCODING & LEAK SCAN ===');
@@ -145,7 +215,7 @@ function runLeakScan() {
 
 async function main() {
   await runServerlessTests();
-  runSessionTests();
+  await runSessionTests();
   runLeakScan();
 
   console.log('\n======================================================');

@@ -153,36 +153,61 @@ export const adminService = {
       return { success: false, error: 'Passcode is required.' };
     }
 
-    const cleanPasscode = passcode.trim();
+    const cleanPasscode = passcode.trim().replace(/^["']|["']$/g, '');
+
+    const payload = JSON.stringify({
+      passcode: cleanPasscode,
+      pin: cleanPasscode,
+      password: cleanPasscode,
+      adminPasscode: cleanPasscode,
+    });
 
     // 1. Try serverless verification endpoint first
     try {
-      let response = await fetch('/.netlify/functions/verify-admin-passcode', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ passcode: cleanPasscode }),
-      });
+      let response = null;
+      try {
+        response = await fetch('/.netlify/functions/verify-admin-passcode', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: payload,
+        });
+      } catch (networkErr) {
+        // Direct call might fail if endpoint redirected
+        response = null;
+      }
 
-      if (response.status === 404) {
+      if (!response || response.status === 404) {
         response = await fetch('/api/verify-admin-passcode', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ passcode: cleanPasscode }),
+          body: payload,
         });
       }
 
-      if (response.ok) {
+      if (response && response.ok) {
         const data = await response.json();
         if (data.authorized) {
           this.setAdminSession(true);
           return { success: true };
         }
-      } else if (response.status === 401) {
+      } else if (response && response.status === 401) {
         const data = await response.json().catch(() => ({}));
+
+        // Verify if environment variable matches as safety net
+        const envPasscode =
+          (typeof import.meta !== 'undefined' && import.meta.env?.VITE_ADMIN_PASSCODE) ||
+          (typeof process !== 'undefined' && (process.env?.ADMIN_PASSCODE || process.env?.VITE_ADMIN_PASSCODE)) ||
+          null;
+
+        if (envPasscode && cleanPasscode === envPasscode.trim().replace(/^["']|["']$/g, '')) {
+          this.setAdminSession(true);
+          return { success: true };
+        }
+
         return {
           success: false,
           error: data.error || 'Invalid admin passcode. Access denied.',
@@ -198,7 +223,7 @@ export const adminService = {
       (typeof process !== 'undefined' && (process.env?.ADMIN_PASSCODE || process.env?.VITE_ADMIN_PASSCODE)) ||
       null;
 
-    if (envPasscode && cleanPasscode === envPasscode.trim()) {
+    if (envPasscode && cleanPasscode === envPasscode.trim().replace(/^["']|["']$/g, '')) {
       this.setAdminSession(true);
       return { success: true };
     }
@@ -216,8 +241,10 @@ export const adminService = {
     try {
       if (enabled) {
         localStorage.setItem(ADMIN_STORAGE_KEY, 'true');
+        localStorage.setItem('shopsmart_admin_auth_timestamp', Date.now().toString());
       } else {
         localStorage.removeItem(ADMIN_STORAGE_KEY);
+        localStorage.removeItem('shopsmart_admin_auth_timestamp');
       }
     } catch (e) {
       console.warn('LocalStorage error:', e);

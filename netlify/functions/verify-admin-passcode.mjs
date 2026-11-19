@@ -36,8 +36,13 @@ export async function handler(event) {
     let payload = {};
     if (event.body) {
       try {
-        payload = JSON.parse(event.body);
+        let rawBody = event.body;
+        if (event.isBase64Encoded && rawBody) {
+          rawBody = Buffer.from(rawBody, 'base64').toString('utf-8');
+        }
+        payload = typeof rawBody === 'string' ? JSON.parse(rawBody) : rawBody;
       } catch (e) {
+        console.warn('[verify-admin-passcode] Request body parse failure:', e.message);
         return {
           statusCode: 400,
           headers,
@@ -46,12 +51,28 @@ export async function handler(event) {
       }
     }
 
-    const submittedPasscode = (payload.passcode || payload.pin || '').trim();
+    // Extract submitted passcode from any supported property name
+    let submittedPasscode = (
+      payload.passcode ||
+      payload.pin ||
+      payload.password ||
+      payload.adminPasscode ||
+      ''
+    ).trim();
+
+    // Strip accidental surrounding single/double quotes
+    submittedPasscode = submittedPasscode.replace(/^["']|["']$/g, '').trim();
 
     // Read the secret passcode securely from environment variables
-    const expectedPasscode = (process.env.ADMIN_PASSCODE || 'admin2026').trim();
+    let expectedPasscode = (
+      process.env.ADMIN_PASSCODE ||
+      process.env.VITE_ADMIN_PASSCODE ||
+      'admin2026'
+    ).trim();
+    expectedPasscode = expectedPasscode.replace(/^["']|["']$/g, '').trim();
 
     if (!submittedPasscode) {
+      console.warn('[verify-admin-passcode] Authentication rejected: empty passcode.');
       return {
         statusCode: 401,
         headers,
@@ -65,6 +86,7 @@ export async function handler(event) {
 
     // Verify passcode against server environment variable
     if (submittedPasscode === expectedPasscode) {
+      console.log('[verify-admin-passcode] Authentication successful: admin authorized.');
       return {
         statusCode: 200,
         headers,
@@ -76,6 +98,7 @@ export async function handler(event) {
       };
     }
 
+    console.warn('[verify-admin-passcode] Authentication rejected: incorrect passcode.');
     // Generic error on failure — never disclose what the expected passcode is
     return {
       statusCode: 401,
