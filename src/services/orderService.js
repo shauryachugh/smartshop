@@ -67,7 +67,8 @@ export const orderService = {
       quantity: Number(item.quantity) || 1,
       unit_price: Number(item.price ?? item.unit_price) || 0,
       subtotal: (Number(item.price ?? item.unit_price) || 0) * (Number(item.quantity) || 1),
-      product_id: (typeof item.id === 'string' && item.id.includes('-') && item.id.length === 36) ? item.id : null,
+      product_id: item.id || null,
+      raw_product_id: item.id || null,
       image: item.image || item.image_url || '',
     }));
 
@@ -134,7 +135,7 @@ export const orderService = {
       if (formattedItems.length > 0 && orderId) {
         const orderItemsPayload = formattedItems.map((item) => ({
           order_id: orderId,
-          product_id: item.product_id,
+          product_id: (typeof item.product_id === 'string' && item.product_id.includes('-') && item.product_id.length === 36) ? item.product_id : null,
           product_name: item.product_name,
           quantity: item.quantity,
           unit_price: item.unit_price,

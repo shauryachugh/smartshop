@@ -25,13 +25,165 @@ import {
   ArrowRight,
   ExternalLink,
   ChevronDown,
-  AlertCircle
+  ChevronLeft,
+  ChevronRight,
+  AlertCircle,
+  X,
+  Check
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { formatCurrency } from '../lib/utils';
 import { adminService } from '../services/adminService';
 import { CATEGORIES } from '../data/mockProducts';
 import Badge from '../components/common/Badge';
+
+/**
+ * Interactive Per-Product Numeric Stock Adjustment Component
+ * Replaces fixed -5/+10 buttons with:
+ * - Direct positive integer numeric input
+ * - Toggle for Increase (+) / Decrease (-)
+ * - 'Apply Adjustment' button
+ * - Strict validation: prevents negative values, zero, or decreasing below 0
+ * - Immediate reactivity and toast feedback
+ */
+function StockAdjuster({ product, onStockUpdated }) {
+  const [mode, setMode] = useState('increase'); // 'increase' | 'decrease'
+  const [qty, setQty] = useState('');
+  const [isApplying, setIsApplying] = useState(false);
+  const [feedback, setFeedback] = useState(null);
+
+  const currentStock = Number(product.stockCount ?? product.stock_quantity ?? 0);
+
+  const handleApply = async () => {
+    const rawNum = qty.trim();
+    if (!rawNum) {
+      setFeedback({ type: 'error', message: 'Please enter a quantity.' });
+      return;
+    }
+
+    const amount = parseInt(rawNum, 10);
+    if (isNaN(amount) || amount <= 0 || !Number.isInteger(Number(rawNum))) {
+      setFeedback({ type: 'error', message: 'Enter a valid positive integer.' });
+      return;
+    }
+
+    if (mode === 'decrease' && amount > currentStock) {
+      setFeedback({
+        type: 'error',
+        message: `Cannot reduce below 0. Current: ${currentStock}, Decrease: ${amount}.`,
+      });
+      return;
+    }
+
+    setIsApplying(true);
+    setFeedback(null);
+
+    const delta = mode === 'increase' ? amount : -amount;
+    const res = await adminService.adjustStock(product.id, delta, 'manual_adjustment');
+
+    setIsApplying(false);
+
+    if (res.success) {
+      const nextStock = currentStock + delta;
+      setFeedback({
+        type: 'success',
+        message: `${mode === 'increase' ? '+' : '-'}${amount} applied · Now: ${nextStock} units`,
+      });
+      setQty('');
+      onStockUpdated(product.id, nextStock);
+      setTimeout(() => {
+        setFeedback(null);
+      }, 4000);
+    } else {
+      setFeedback({
+        type: 'error',
+        message: res.error || 'Failed to update stock.',
+      });
+    }
+  };
+
+  return (
+    <div className="space-y-1.5 pt-2 border-t border-stone-200/70">
+      <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
+        {/* Increase / Decrease Toggle */}
+        <div className="flex rounded-lg border border-stone-200 bg-stone-100 p-0.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              setMode('increase');
+              if (feedback) setFeedback(null);
+            }}
+            className={`px-2 py-0.5 text-[11px] font-bold rounded-md transition-colors ${
+              mode === 'increase'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-stone-600 hover:text-stone-900'
+            }`}
+            title="Increase stock"
+          >
+            + Add
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMode('decrease');
+              if (feedback) setFeedback(null);
+            }}
+            className={`px-2 py-0.5 text-[11px] font-bold rounded-md transition-colors ${
+              mode === 'decrease'
+                ? 'bg-red-600 text-white shadow-xs'
+                : 'text-stone-600 hover:text-stone-900'
+            }`}
+            title="Decrease stock"
+          >
+            - Deduct
+          </button>
+        </div>
+
+        {/* Numeric input */}
+        <input
+          type="number"
+          min="1"
+          step="1"
+          placeholder="Qty"
+          value={qty}
+          onChange={(e) => {
+            setQty(e.target.value);
+            if (feedback) setFeedback(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              handleApply();
+            }
+          }}
+          className="w-16 px-2 py-1 text-xs border border-stone-200 rounded-lg text-center font-bold focus:outline-none focus:border-amber-700 bg-white"
+        />
+
+        {/* Apply button */}
+        <button
+          type="button"
+          disabled={isApplying || !qty}
+          onClick={handleApply}
+          className="px-2.5 py-1 bg-brand-dark hover:bg-brand-charcoal disabled:opacity-40 text-white text-[11px] font-bold rounded-lg transition-colors shadow-xs shrink-0"
+        >
+          {isApplying ? '...' : 'Apply'}
+        </button>
+      </div>
+
+      {feedback && (
+        <div
+          className={`text-[10px] font-medium leading-tight px-2 py-1 rounded ${
+            feedback.type === 'error'
+              ? 'bg-red-50 text-red-700 border border-red-200'
+              : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+          }`}
+        >
+          {feedback.message}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function AdminDashboard() {
   const { user, profile, signOut } = useAuth();
@@ -60,6 +212,16 @@ export default function AdminDashboard() {
   // Filters
   const [productSearch, setProductSearch] = useState('');
   const [productCategory, setProductCategory] = useState('All');
+
+  // Inventory Tab Filters & Pagination
+  const [inventorySearch, setInventorySearch] = useState('');
+  const [inventoryCategory, setInventoryCategory] = useState('All');
+  const [inventoryStockFilter, setInventoryStockFilter] = useState('all'); // 'all' | 'low' | 'out' | 'in'
+  const [inventorySort, setInventorySort] = useState('default'); // 'default' | 'stock_asc' | 'stock_desc' | 'name_asc' | 'price_asc' | 'price_desc'
+  const [inventoryPage, setInventoryPage] = useState(1);
+  const [showAllInventory, setShowAllInventory] = useState(false);
+  const inventoryItemsPerPage = 18;
+  const [statusToast, setStatusToast] = useState(null);
 
   // Product Modal (Add / Edit)
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -150,6 +312,60 @@ export default function AdminDashboard() {
       return matchesSearch && matchesCategory;
     });
   }, [products, productSearch, productCategory]);
+
+  // Filtered Products for Inventory Tab (65 products full catalogue)
+  const filteredInventoryProducts = useMemo(() => {
+    let list = products.filter((p) => {
+      const name = (p.name || '').toLowerCase();
+      const cat = (p.category || '').toLowerCase();
+      const brand = (p.brand || '').toLowerCase();
+      const q = inventorySearch.trim().toLowerCase();
+
+      const matchesSearch = !q || name.includes(q) || cat.includes(q) || brand.includes(q);
+      const matchesCategory =
+        inventoryCategory === 'All' ||
+        cat === inventoryCategory.toLowerCase();
+
+      const stock = Number(p.stockCount ?? p.stock_quantity ?? 0);
+      let matchesStock = true;
+      if (inventoryStockFilter === 'low') {
+        matchesStock = stock > 0 && stock < 15;
+      } else if (inventoryStockFilter === 'out') {
+        matchesStock = stock === 0;
+      } else if (inventoryStockFilter === 'in') {
+        matchesStock = stock >= 15;
+      }
+
+      return matchesSearch && matchesCategory && matchesStock;
+    });
+
+    // Sorting
+    if (inventorySort === 'stock_asc') {
+      list.sort((a, b) => (Number(a.stockCount ?? a.stock_quantity ?? 0)) - (Number(b.stockCount ?? b.stock_quantity ?? 0)));
+    } else if (inventorySort === 'stock_desc') {
+      list.sort((a, b) => (Number(b.stockCount ?? b.stock_quantity ?? 0)) - (Number(a.stockCount ?? a.stock_quantity ?? 0)));
+    } else if (inventorySort === 'name_asc') {
+      list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    } else if (inventorySort === 'price_asc') {
+      list.sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
+    } else if (inventorySort === 'price_desc') {
+      list.sort((a, b) => (Number(b.price) || 0) - (Number(a.price) || 0));
+    }
+
+    return list;
+  }, [products, inventorySearch, inventoryCategory, inventoryStockFilter, inventorySort]);
+
+  // Reset pagination on filter changes
+  useEffect(() => {
+    setInventoryPage(1);
+  }, [inventorySearch, inventoryCategory, inventoryStockFilter, inventorySort]);
+
+  const totalInventoryPages = Math.max(1, Math.ceil(filteredInventoryProducts.length / inventoryItemsPerPage));
+  const displayedInventoryProducts = useMemo(() => {
+    if (showAllInventory) return filteredInventoryProducts;
+    const start = (inventoryPage - 1) * inventoryItemsPerPage;
+    return filteredInventoryProducts.slice(start, start + inventoryItemsPerPage);
+  }, [filteredInventoryProducts, inventoryPage, showAllInventory, inventoryItemsPerPage]);
 
   // Product CRUD Handlers
   const handleOpenAdd = () => {
@@ -247,10 +463,27 @@ export default function AdminDashboard() {
   };
 
   const handleOrderStatusChange = async (orderId, newStatus) => {
-    await adminService.updateOrderStatus(orderId, newStatus);
-    setOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, order_status: newStatus } : o))
-    );
+    const res = await adminService.updateOrderStatus(orderId, newStatus);
+    if (!res.success) {
+      setStatusToast({
+        type: 'error',
+        message: res.error || 'Failed to update order status.',
+      });
+      // Force reload data to revert dropdown in UI
+      await loadData();
+      return;
+    }
+
+    setStatusToast({
+      type: 'success',
+      message:
+        newStatus === 'delivered'
+          ? `Order #${orderId.slice(0, 8)} marked as Delivered. Purchased inventory deducted successfully!`
+          : `Order #${orderId.slice(0, 8)} status updated to ${newStatus}.`,
+    });
+
+    // Refresh products and orders so all inventory counts update reactively across tabs!
+    await loadData();
   };
 
   // ----------------------------------------------------
@@ -372,6 +605,33 @@ export default function AdminDashboard() {
           </button>
         </div>
       </div>
+
+      {/* Dynamic Status / Alert Banner */}
+      {statusToast && (
+        <div
+          className={`p-4 rounded-2xl border flex items-center justify-between gap-3 shadow-soft-sm transition-all animate-in fade-in ${
+            statusToast.type === 'error'
+              ? 'bg-red-50/90 border-red-200 text-red-900'
+              : 'bg-emerald-50/90 border-emerald-200 text-emerald-900'
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            {statusToast.type === 'error' ? (
+              <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+            )}
+            <span className="text-xs font-semibold leading-relaxed">{statusToast.message}</span>
+          </div>
+          <button
+            onClick={() => setStatusToast(null)}
+            className="p-1 hover:bg-black/5 rounded-lg text-stone-500 transition-colors shrink-0"
+            title="Dismiss notice"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* 2. Top KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -643,72 +903,254 @@ export default function AdminDashboard() {
       {/* 6. TAB 3: INVENTORY MANAGEMENT */}
       {activeTab === 'inventory' && (
         <div className="bg-white rounded-3xl p-6 border border-brand-border shadow-soft-sm space-y-6 animate-in fade-in">
-          <div className="flex items-center justify-between">
+          {/* Header & Total Count Badge */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-stone-200/80 pb-4">
             <div>
-              <h3 className="font-serif text-lg font-semibold text-brand-dark">
-                Fast Inventory Reorder & Stock Balancer
-              </h3>
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h3 className="font-serif text-lg font-semibold text-brand-dark">
+                  Fast Inventory Reorder & Stock Balancer
+                </h3>
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-stone-100 text-stone-700 font-bold border border-stone-200">
+                  Showing {showAllInventory ? filteredInventoryProducts.length : displayedInventoryProducts.length} of {filteredInventoryProducts.length} Products
+                  {filteredInventoryProducts.length !== products.length && ` (Total: ${products.length})`}
+                </span>
+              </div>
               <p className="text-xs text-brand-muted mt-0.5">
-                Quickly adjust stock quantities or flag products as Out of Stock.
+                Full catalogue inventory controls across all {products.length} products. Search, filter, and apply custom integer stock increases or decreases.
               </p>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setShowAllInventory((prev) => !prev)}
+                className={`text-xs px-3 py-1.5 rounded-xl border font-semibold transition-colors ${
+                  showAllInventory
+                    ? 'bg-amber-600 text-white border-amber-600'
+                    : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
+                }`}
+              >
+                {showAllInventory ? 'Switch to Paginated View' : `Show All ${filteredInventoryProducts.length} Products`}
+              </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {products.slice(0, 30).map((p) => {
-              const stock = p.stockCount ?? p.stock_quantity ?? 0;
-              return (
-                <div
-                  key={p.id}
-                  className="p-4 rounded-2xl border border-stone-200 bg-stone-50/60 flex items-center justify-between gap-3"
+          {/* Search, Category Filter, Stock Filter, Sort Controls */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-stone-50/70 p-3.5 rounded-2xl border border-stone-200/80">
+            {/* Search */}
+            <div className="relative">
+              <Search className="w-4 h-4 text-stone-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                placeholder="Search products, brands..."
+                value={inventorySearch}
+                onChange={(e) => setInventorySearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-stone-200 bg-white focus:outline-none focus:border-amber-600"
+              />
+              {inventorySearch && (
+                <button
+                  onClick={() => setInventorySearch('')}
+                  className="absolute right-2.5 top-2.5 text-stone-400 hover:text-stone-600"
                 >
-                  <img
-                    src={p.image || p.image_url}
-                    alt={p.name}
-                    className="w-12 h-12 rounded-xl object-cover bg-white shrink-0 border border-stone-100"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <h5 className="font-serif font-semibold text-xs text-brand-dark line-clamp-1">
-                      {p.name}
-                    </h5>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs font-bold text-amber-800">
-                        {formatCurrency(p.price)}
-                      </span>
-                      <span
-                        className={`text-[9px] px-1.5 py-0.2 rounded font-medium ${
-                          stock === 0
-                            ? 'bg-red-100 text-red-800'
-                            : stock < 15
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-emerald-100 text-emerald-800'
-                        }`}
-                      >
-                        {stock} units
-                      </span>
-                    </div>
-                  </div>
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
 
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => handleStockDelta(p.id, stock, -5)}
-                      className="w-7 h-7 rounded-lg bg-white border border-stone-200 hover:bg-stone-100 text-xs font-bold text-stone-700 flex items-center justify-center transition-colors shadow-sm"
-                      title="Decrease by 5"
-                    >
-                      -5
-                    </button>
-                    <button
-                      onClick={() => handleStockDelta(p.id, stock, 10)}
-                      className="w-7 h-7 rounded-lg bg-brand-dark hover:bg-brand-charcoal text-xs font-bold text-white flex items-center justify-center transition-colors shadow-sm"
-                      title="Restock +10"
-                    >
-                      +10
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+            {/* Category Filter */}
+            <div>
+              <select
+                value={inventoryCategory}
+                onChange={(e) => setInventoryCategory(e.target.value)}
+                className="w-full py-2 px-3 text-xs rounded-xl border border-stone-200 bg-white text-stone-700 focus:outline-none focus:border-amber-600"
+              >
+                <option value="All">All Categories (10)</option>
+                {CATEGORIES.map((c) => (
+                  <option key={c.id} value={c.name}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Stock Health Filter */}
+            <div>
+              <select
+                value={inventoryStockFilter}
+                onChange={(e) => setInventoryStockFilter(e.target.value)}
+                className="w-full py-2 px-3 text-xs rounded-xl border border-stone-200 bg-white text-stone-700 focus:outline-none focus:border-amber-600"
+              >
+                <option value="all">All Stock Levels</option>
+                <option value="low">Low Stock (&lt; 15 units)</option>
+                <option value="out">Out of Stock (0 units)</option>
+                <option value="in">Healthy Stock (&ge; 15 units)</option>
+              </select>
+            </div>
+
+            {/* Sort Order */}
+            <div>
+              <select
+                value={inventorySort}
+                onChange={(e) => setInventorySort(e.target.value)}
+                className="w-full py-2 px-3 text-xs rounded-xl border border-stone-200 bg-white text-stone-700 focus:outline-none focus:border-amber-600"
+              >
+                <option value="default">Sort: Default Order</option>
+                <option value="stock_asc">Sort: Stock (Low to High)</option>
+                <option value="stock_desc">Sort: Stock (High to Low)</option>
+                <option value="name_asc">Sort: Name (A to Z)</option>
+                <option value="price_asc">Sort: Price (Low to High)</option>
+                <option value="price_desc">Sort: Price (High to Low)</option>
+              </select>
+            </div>
           </div>
+
+          {/* Product Grid */}
+          {displayedInventoryProducts.length === 0 ? (
+            <div className="p-10 text-center bg-stone-50 rounded-2xl border border-stone-200 text-stone-500 text-xs space-y-2">
+              <p>No products match your current search and filter criteria.</p>
+              <button
+                onClick={() => {
+                  setInventorySearch('');
+                  setInventoryCategory('All');
+                  setInventoryStockFilter('all');
+                  setInventorySort('default');
+                }}
+                className="text-amber-800 font-bold underline hover:text-amber-900"
+              >
+                Reset all filters
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {displayedInventoryProducts.map((p) => {
+                const stock = Number(p.stockCount ?? p.stock_quantity ?? 0);
+                return (
+                  <div
+                    key={p.id}
+                    className="p-4 rounded-2xl border border-stone-200 bg-stone-50/60 flex flex-col justify-between gap-3 shadow-soft-xs hover:border-stone-300 transition-all"
+                  >
+                    <div className="flex items-start gap-3">
+                      <img
+                        src={p.image || p.image_url}
+                        alt={p.name}
+                        className="w-14 h-14 rounded-xl object-cover bg-white shrink-0 border border-stone-100"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[10px] text-stone-400 font-medium uppercase tracking-wider">
+                          {p.category}
+                        </div>
+                        <h5 className="font-serif font-semibold text-xs text-brand-dark line-clamp-1" title={p.name}>
+                          {p.name}
+                        </h5>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs font-bold text-amber-800">
+                            {formatCurrency(p.price)}
+                          </span>
+                          <span
+                            className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${
+                              stock === 0
+                                ? 'bg-red-100 text-red-800'
+                                : stock < 15
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-emerald-100 text-emerald-800'
+                            }`}
+                          >
+                            {stock} units in stock
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Numeric Stock Adjuster */}
+                    <StockAdjuster
+                      product={p}
+                      onStockUpdated={(id, nextStock) => {
+                        setProducts((prev) =>
+                          prev.map((item) =>
+                            item.id === id
+                              ? {
+                                  ...item,
+                                  stockCount: nextStock,
+                                  stock_quantity: nextStock,
+                                  availability:
+                                    nextStock === 0
+                                      ? 'Out of Stock'
+                                      : nextStock < 10
+                                      ? 'Low Stock'
+                                      : 'In Stock',
+                                }
+                              : item
+                          )
+                        );
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Pagination Controls */}
+          {!showAllInventory && totalInventoryPages > 1 && (
+            <div className="flex items-center justify-between pt-4 border-t border-stone-200/80">
+              <span className="text-xs text-stone-500 font-medium">
+                Page {inventoryPage} of {totalInventoryPages} ({filteredInventoryProducts.length} total products)
+              </span>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={inventoryPage <= 1}
+                  onClick={() => setInventoryPage((prev) => Math.max(1, prev - 1))}
+                  className="px-3 py-1.5 rounded-xl border border-stone-200 text-xs font-semibold text-stone-700 bg-white hover:bg-stone-50 disabled:opacity-40 transition-colors flex items-center gap-1"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>Previous</span>
+                </button>
+
+                <div className="flex items-center gap-1 px-1">
+                  {Array.from({ length: totalInventoryPages }, (_, i) => i + 1).map((pg) => {
+                    if (
+                      pg === 1 ||
+                      pg === totalInventoryPages ||
+                      (pg >= inventoryPage - 1 && pg <= inventoryPage + 1)
+                    ) {
+                      return (
+                        <button
+                          key={pg}
+                          onClick={() => setInventoryPage(pg)}
+                          className={`w-7 h-7 rounded-lg text-xs font-bold transition-colors ${
+                            inventoryPage === pg
+                              ? 'bg-brand-dark text-white'
+                              : 'text-stone-600 hover:bg-stone-100'
+                          }`}
+                        >
+                          {pg}
+                        </button>
+                      );
+                    }
+                    if (pg === inventoryPage - 2 || pg === inventoryPage + 2) {
+                      return (
+                        <span key={pg} className="text-stone-400 text-xs px-1">
+                          ...
+                        </span>
+                      );
+                    }
+                    return null;
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  disabled={inventoryPage >= totalInventoryPages}
+                  onClick={() => setInventoryPage((prev) => Math.min(totalInventoryPages, prev + 1))}
+                  className="px-3 py-1.5 rounded-xl border border-stone-200 text-xs font-semibold text-stone-700 bg-white hover:bg-stone-50 disabled:opacity-40 transition-colors flex items-center gap-1"
+                >
+                  <span>Next</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -740,24 +1182,39 @@ export default function AdminDashboard() {
             <div className="space-y-4">
               {orders.map((order) => {
                 const isCancelled = (order.order_status || '').toLowerCase() === 'cancelled';
+                const isDelivered = (order.order_status || '').toLowerCase() === 'delivered';
+                const isDeducted =
+                  order.inventory_deducted === true ||
+                  order.shipping_address?.inventory_deducted === true ||
+                  order.shipping_address?.inventory_deducted === 'true';
                 const itemsList = order.items || order.order_items || [];
 
                 return (
                   <div
                     key={order.id}
                     className={`p-5 rounded-2xl border ${
-                      isCancelled ? 'border-red-200 bg-red-50/20' : 'border-stone-200 bg-stone-50/50'
+                      isCancelled
+                        ? 'border-red-200 bg-red-50/20'
+                        : isDelivered
+                        ? 'border-emerald-200 bg-emerald-50/15'
+                        : 'border-stone-200 bg-stone-50/50'
                     } space-y-3 transition-colors`}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-200/60 pb-3">
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-[10px] font-mono text-stone-500 font-bold">
                             #{order.id}
                           </span>
                           <span className="text-[10px] px-2 py-0.2 rounded-full bg-emerald-100 text-emerald-800 font-medium">
                             Real Customer Order
                           </span>
+                          {(isDelivered || isDeducted) && (
+                            <span className="text-[10px] px-2 py-0.2 rounded-full bg-emerald-100 text-emerald-900 font-bold flex items-center gap-1 border border-emerald-300">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>Delivered · Stock Deducted</span>
+                            </span>
+                          )}
                         </div>
                         <h5 className="font-serif font-semibold text-sm text-brand-dark mt-0.5">
                           {order.customer_name || 'Customer'}
@@ -794,6 +1251,8 @@ export default function AdminDashboard() {
                           className={`text-xs py-1.5 px-2.5 rounded-xl border ${
                             isCancelled
                               ? 'border-red-300 bg-red-50 text-red-800 font-bold'
+                              : isDelivered
+                              ? 'border-emerald-300 bg-emerald-50/80 text-emerald-900 font-bold'
                               : 'border-stone-200 bg-white font-medium text-stone-800'
                           } shadow-sm focus:outline-none focus:border-amber-600`}
                         >

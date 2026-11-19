@@ -11,6 +11,12 @@ const ADMIN_STORAGE_KEY = 'shopsmart_admin_session_v1';
 const LOCAL_PRODUCTS_KEY = 'shopsmart_custom_products_v1';
 const LOCAL_ORDERS_KEY = 'shopsmart_orders_storage_v1';
 
+const safeTimeout = (promise, ms = 2000) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Network request timed out')), ms)),
+  ]);
+
 /**
  * Determine whether an order is a seeded/mock demo order or a real customer order.
  *
@@ -271,10 +277,13 @@ export const adminService = {
   async getAdminProducts() {
     if (isSupabaseConfigured) {
       try {
-        const { data, error } = await supabase
-          .from('products')
-          .select('*')
-          .order('created_at', { ascending: false });
+        const { data, error } = await safeTimeout(
+          supabase
+            .from('products')
+            .select('*')
+            .order('created_at', { ascending: false }),
+          1500
+        );
 
         if (!error && Array.isArray(data) && data.length > 0) {
           return data;
@@ -400,19 +409,119 @@ export const adminService = {
   },
 
   /**
-   * Update product stock quantity and availability
+   * Internal helper to record an inventory change in local audit trail
    */
-  async updateStock(productId, newStock) {
+  _logInventoryAudit({
+    productId = null,
+    productName = '',
+    changeAmount = 0,
+    previousStock = 0,
+    newStock = 0,
+    reason = 'manual_adjustment',
+    orderId = null,
+  }) {
+    try {
+      const KEY = 'shopsmart_inventory_audit_log_v1';
+      const existing = JSON.parse(localStorage.getItem(KEY) || '[]');
+      const entry = {
+        id: `audit-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        product_id: productId,
+        product_name: productName,
+        order_id: orderId,
+        change_amount: changeAmount,
+        previous_stock: previousStock,
+        new_stock: newStock,
+        reason,
+        created_at: new Date().toISOString(),
+      };
+      existing.unshift(entry);
+      // Keep most recent 200 logs
+      if (existing.length > 200) existing.length = 200;
+      localStorage.setItem(KEY, JSON.stringify(existing));
+      return entry;
+    } catch (e) {
+      console.warn('Could not record local inventory audit log:', e);
+      return null;
+    }
+  },
+
+  /**
+   * Retrieve inventory audit logs
+   */
+  async getInventoryAuditLogs() {
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('inventory_audit_log')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(100);
+        if (!error && Array.isArray(data)) {
+          return data;
+        }
+      } catch (e) {
+        console.warn('Could not fetch Supabase audit logs:', e);
+      }
+    }
+    try {
+      return JSON.parse(localStorage.getItem('shopsmart_inventory_audit_log_v1') || '[]');
+    } catch (e) {
+      return [];
+    }
+  },
+
+  /**
+   * Update product stock quantity and availability with audit logging
+   */
+  async updateStock(productId, newStock, reason = 'manual_adjustment', orderId = null, changeAmount = null) {
     const stockCount = Math.max(0, Number(newStock));
     const availability = stockCount === 0 ? 'Out of Stock' : stockCount < 10 ? 'Low Stock' : 'In Stock';
+    let previousStock = 0;
+    let productName = '';
 
-    if (isSupabaseConfigured) {
+    // Find previous product information if available
+    try {
+      const custom = JSON.parse(localStorage.getItem(LOCAL_PRODUCTS_KEY) || '[]');
+      const foundCustom = custom.find((p) => p.id === productId);
+      if (foundCustom) {
+        previousStock = Number(foundCustom.stockCount ?? foundCustom.stock_quantity ?? 0);
+        productName = foundCustom.name || '';
+      } else {
+        const foundMock = PRODUCTS.find((p) => p.id === productId);
+        if (foundMock) {
+          previousStock = Number(foundMock.stockCount ?? foundMock.stock_quantity ?? 0);
+          productName = foundMock.name || '';
+        }
+      }
+    } catch (e) {}
+
+    const calculatedDelta = changeAmount !== null ? Number(changeAmount) : stockCount - previousStock;
+
+    const isUuid = typeof productId === 'string' && productId.includes('-') && productId.length === 36;
+    if (isSupabaseConfigured && isUuid) {
       try {
         const { error } = await supabase
           .from('products')
-          .update({ stock_quantity: stockCount, availability })
+          .update({ stock_quantity: stockCount, availability, updated_at: new Date().toISOString() })
           .eq('id', productId);
-        if (!error) return { success: true, stockCount, availability };
+
+        if (!error) {
+          // Log audit entry to Supabase
+          try {
+            await supabase.from('inventory_audit_log').insert({
+              product_id: (typeof productId === 'string' && productId.includes('-') && productId.length === 36) ? productId : null,
+              product_name: productName,
+              order_id: (typeof orderId === 'string' && orderId.includes('-') && orderId.length === 36) ? orderId : null,
+              change_amount: calculatedDelta,
+              previous_stock: previousStock,
+              new_stock: stockCount,
+              reason,
+              created_by: 'admin',
+            });
+          } catch (auditErr) {
+            console.warn('[adminService] Audit log insert notice:', auditErr.message);
+          }
+        }
       } catch (err) {
         console.warn('[adminService] Stock update notice:', err.message);
       }
@@ -423,18 +532,59 @@ export const adminService = {
       const idx = custom.findIndex((p) => p.id === productId);
       if (idx > -1) {
         custom[idx].stockCount = stockCount;
+        custom[idx].stock_quantity = stockCount;
         custom[idx].availability = availability;
       } else {
         const found = PRODUCTS.find((p) => p.id === productId);
         if (found) {
-          custom.push({ ...found, stockCount, availability });
+          custom.push({ ...found, stockCount, stock_quantity: stockCount, availability });
         }
       }
       localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify(custom));
+
+      // Always maintain local audit log
+      this._logInventoryAudit({
+        productId,
+        productName,
+        changeAmount: calculatedDelta,
+        previousStock,
+        newStock: stockCount,
+        reason,
+        orderId,
+      });
+
       return { success: true, stockCount, availability };
     } catch (e) {
       return { success: false, error: e.message };
     }
+  },
+
+  /**
+   * Adjust product stock by a positive or negative integer delta
+   */
+  async adjustStock(productId, delta, reason = 'manual_adjustment') {
+    const adjustment = Number(delta);
+    if (isNaN(adjustment) || !Number.isInteger(adjustment)) {
+      return { success: false, error: 'Adjustment quantity must be an integer.' };
+    }
+
+    const allProducts = await this.getAdminProducts();
+    const product = allProducts.find((p) => p.id === productId);
+    if (!product) {
+      return { success: false, error: `Product not found: ${productId}` };
+    }
+
+    const currentStock = Number(product.stockCount ?? product.stock_quantity ?? 0);
+    const newStock = currentStock + adjustment;
+
+    if (newStock < 0) {
+      return {
+        success: false,
+        error: `Cannot reduce stock below 0. Current stock is ${currentStock} units, but requested decrease was ${Math.abs(adjustment)} units.`,
+      };
+    }
+
+    return await this.updateStock(productId, newStock, reason, null, adjustment);
   },
 
   /**
@@ -450,10 +600,13 @@ export const adminService = {
 
     if (isSupabaseConfigured) {
       try {
-        const { data, error } = await supabase
-          .from('orders')
-          .select('*, order_items(*)')
-          .order('created_at', { ascending: false });
+        const { data, error } = await safeTimeout(
+          supabase
+            .from('orders')
+            .select('*, order_items(*)')
+            .order('created_at', { ascending: false }),
+          1500
+        );
 
         if (!error && Array.isArray(data)) {
           // Filter out seeded/sample orders
@@ -513,17 +666,151 @@ export const adminService = {
   },
 
   /**
-   * Update order status
+   * Update order status with atomic inventory deduction on delivery
+   *
+   * REQUIREMENTS:
+   * 1. When transitioning to 'delivered', automatically deduct the exact ordered quantity
+   *    of every product in order_items from inventory.
+   * 2. Ensure stock is deducted exactly once per order (prevent double deduction on re-saves/refreshes).
+   * 3. Prevent negative inventory. If stock is insufficient, cancel status transition and return descriptive error.
+   * 4. Atomic transaction via Supabase RPC with reliable local client fallback.
+   * 5. Record inventory audit trail.
    */
   async updateOrderStatus(orderId, newStatus) {
+    const isDeliveryTransition = String(newStatus || '').toLowerCase() === 'delivered';
+
+    // 1. Fetch current order to check current status and items
+    const allOrders = await this.getAdminOrders();
+    const order = allOrders.find((o) => o.id === orderId);
+
+    if (!order) {
+      return { success: false, error: `Order #${orderId} was not found.` };
+    }
+
+    // 2. If transitioning to 'delivered', enforce inventory deduction rules
+    if (isDeliveryTransition) {
+      const alreadyDelivered = (order.order_status || '').toLowerCase() === 'delivered';
+      const alreadyDeducted =
+        order.inventory_deducted === true ||
+        order.shipping_address?.inventory_deducted === true ||
+        order.shipping_address?.inventory_deducted === 'true';
+
+      // Idempotency: If already delivered and stock was previously deducted, do not deduct again
+      if (alreadyDelivered && alreadyDeducted) {
+        return {
+          success: true,
+          message: 'Order is already marked as delivered; inventory was previously deducted.',
+          alreadyDeducted: true,
+        };
+      }
+
+      // Try atomic Supabase RPC if configured and order has UUID
+      const isUuidOrder = typeof orderId === 'string' && orderId.length === 36 && orderId.includes('-');
+      if (isSupabaseConfigured && isUuidOrder) {
+        try {
+          const { data, error } = await supabase.rpc('deliver_order_and_deduct_inventory', {
+            p_order_id: orderId,
+          });
+
+          if (!error && data) {
+            if (data.success === false) {
+              return {
+                success: false,
+                error: data.error || 'Insufficient stock to fulfill order delivery.',
+              };
+            }
+
+            // Sync local cache
+            this._updateLocalOrderStatus(orderId, 'delivered', true);
+            return {
+              success: true,
+              message: data.message || 'Order delivered and inventory deducted successfully.',
+            };
+          } else if (error) {
+            console.warn('[adminService] Supabase RPC delivery notice:', error.message);
+          }
+        } catch (err) {
+          console.warn('[adminService] RPC execution notice, using local transactional deduction:', err.message);
+        }
+      }
+
+      // Local / Offline Transactional Execution:
+      const items = order.order_items || order.items || [];
+      const products = await this.getAdminProducts();
+
+      // Phase A: Pre-validation of inventory (ensure NO product goes below 0)
+      for (const item of items) {
+        const qty = Number(item.quantity) || 1;
+        const target = products.find(
+          (p) =>
+            p.id === item.product_id ||
+            p.id === item.raw_product_id ||
+            (p.name && item.product_name && p.name.trim().toLowerCase() === item.product_name.trim().toLowerCase())
+        );
+
+        if (target) {
+          const currentStock = Number(target.stockCount ?? target.stock_quantity ?? 0);
+          if (currentStock < qty) {
+            return {
+              success: false,
+              error: `Insufficient stock for "${target.name}". Ordered: ${qty}, Available: ${currentStock}. Delivery cancelled to prevent negative inventory.`,
+            };
+          }
+        }
+      }
+
+      // Phase B: Execute stock deduction and audit trail for each purchased product
+      for (const item of items) {
+        const qty = Number(item.quantity) || 1;
+        const target = products.find(
+          (p) =>
+            p.id === item.product_id ||
+            p.id === item.raw_product_id ||
+            (p.name && item.product_name && p.name.trim().toLowerCase() === item.product_name.trim().toLowerCase())
+        );
+
+        if (target) {
+          const currentStock = Number(target.stockCount ?? target.stock_quantity ?? 0);
+          const nextStock = Math.max(0, currentStock - qty);
+          await this.updateStock(target.id, nextStock, 'order_delivery', orderId, -qty);
+        }
+      }
+
+      // Phase C: Update order status to 'delivered' and mark inventory as deducted
+      if (isSupabaseConfigured && isUuidOrder) {
+        try {
+          await supabase
+            .from('orders')
+            .update({
+              order_status: 'delivered',
+              inventory_deducted: true,
+              shipping_address: {
+                ...(order.shipping_address || {}),
+                inventory_deducted: true,
+              },
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', orderId);
+        } catch (e) {
+          console.warn('[adminService] Could not update Supabase order status:', e.message);
+        }
+      }
+
+      this._updateLocalOrderStatus(orderId, 'delivered', true);
+      return {
+        success: true,
+        message: `Order #${orderId} delivered and inventory successfully deducted.`,
+      };
+    }
+
+    // 3. For any other status transition (pending, confirmed, processing, shipped, cancelled)
     if (isSupabaseConfigured) {
       try {
         const { error } = await supabase
           .from('orders')
-          .update({ order_status: newStatus })
+          .update({ order_status: newStatus, updated_at: new Date().toISOString() })
           .eq('id', orderId);
         if (!error) {
-          // Also update local storage cache if present
           this._updateLocalOrderStatus(orderId, newStatus);
           return { success: true };
         }
@@ -539,16 +826,32 @@ export const adminService = {
   /**
    * Internal helper to update status in local customer orders cache
    */
-  _updateLocalOrderStatus(orderId, newStatus) {
+  _updateLocalOrderStatus(orderId, newStatus, inventoryDeducted = false) {
+    const updateFn = (o) => {
+      if (o.id !== orderId) return o;
+      const updated = {
+        ...o,
+        order_status: newStatus,
+      };
+      if (inventoryDeducted || newStatus === 'delivered') {
+        updated.inventory_deducted = true;
+        updated.shipping_address = {
+          ...(o.shipping_address || {}),
+          inventory_deducted: true,
+        };
+      }
+      return updated;
+    };
+
     try {
       const orders = getLocalCustomerOrders();
-      const updated = orders.map((o) => (o.id === orderId ? { ...o, order_status: newStatus } : o));
+      const updated = orders.map(updateFn);
       localStorage.setItem('shopsmart_real_customer_orders_v1', JSON.stringify(updated));
     } catch (e) {}
 
     try {
       const legacy = JSON.parse(localStorage.getItem(LOCAL_ORDERS_KEY) || '[]');
-      const updated = legacy.map((o) => (o.id === orderId ? { ...o, order_status: newStatus } : o));
+      const updated = legacy.map(updateFn);
       localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(updated));
     } catch (e) {}
   },
