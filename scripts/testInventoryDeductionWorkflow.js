@@ -159,6 +159,23 @@ async function runTests() {
   assert(Number(pA_before.stockCount) === 30, 'Product A stock is 30 prior to delivery');
   assert(Number(pB_before.stockCount) === 20, 'Product B stock is 20 prior to delivery');
 
+  // Verify non-delivery statuses (Processing, Shipped) DO NOT deduct inventory
+  console.log('  -> Admin marks order as "processing"...');
+  await adminService.updateOrderStatus(orderId, 'processing');
+  const prodsAfterProcessing = await adminService.getAdminProducts();
+  assert(
+    Number(prodsAfterProcessing.find((p) => p.id === prodA.id).stockCount) === 30,
+    'Processing status does NOT deduct inventory (Product A stock remains 30)'
+  );
+
+  console.log('  -> Admin marks order as "shipped"...');
+  await adminService.updateOrderStatus(orderId, 'shipped');
+  const prodsAfterShipped = await adminService.getAdminProducts();
+  assert(
+    Number(prodsAfterShipped.find((p) => p.id === prodA.id).stockCount) === 30,
+    'Shipped status does NOT deduct inventory (Product A stock remains 30)'
+  );
+
   // TRANSITION ORDER TO 'DELIVERED'
   console.log('  -> Admin marks order as "delivered"...');
   const deliveryResult = await adminService.updateOrderStatus(orderId, 'delivered');
@@ -256,6 +273,25 @@ async function runTests() {
   const productsCheck = await adminService.getAdminProducts();
   const prodCCheck = productsCheck.find((p) => p.id === prodC.id);
   assert(Number(prodCCheck.stockCount) === 2, `Product C stock remained intact at 2 units (got: ${prodCCheck.stockCount})`);
+
+  // --------------------------------------------------------------------------
+  // TEST SUITE 6: UI VERIFICATION (Orders Section Badge Removal)
+  // --------------------------------------------------------------------------
+  console.log('\nSuite 6: UI Verification (Orders Section Badge Removal)');
+  const fs = await import('fs');
+  const dashboardSource = fs.readFileSync('./src/pages/AdminDashboard.jsx', 'utf8');
+
+  // Verify "Real Customer Order" badge is completely absent from Orders section
+  const ordersSectionStart = dashboardSource.indexOf("activeTab === 'orders'");
+  const ordersSection = dashboardSource.substring(ordersSectionStart);
+  assert(
+    !ordersSection.includes('Real Customer Order'),
+    'Badge "Real Customer Order" is completely removed from the Orders section'
+  );
+  assert(
+    !ordersSection.includes('Real Customer Orders'),
+    'Badge "Real Customer Orders" is completely absent from the Orders section'
+  );
 
   // --------------------------------------------------------------------------
   // SUMMARY

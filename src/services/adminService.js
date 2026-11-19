@@ -678,6 +678,7 @@ export const adminService = {
    */
   async updateOrderStatus(orderId, newStatus) {
     const isDeliveryTransition = String(newStatus || '').toLowerCase() === 'delivered';
+    const isUuidOrder = typeof orderId === 'string' && orderId.length === 36 && orderId.includes('-');
 
     // 1. Fetch current order to check current status and items
     const allOrders = await this.getAdminOrders();
@@ -695,17 +696,25 @@ export const adminService = {
         order.shipping_address?.inventory_deducted === true ||
         order.shipping_address?.inventory_deducted === 'true';
 
-      // Idempotency: If already delivered and stock was previously deducted, do not deduct again
-      if (alreadyDelivered && alreadyDeducted) {
+      // Idempotency: If stock was previously deducted for this order, do not deduct again
+      if (alreadyDeducted || alreadyDelivered) {
+        if (isSupabaseConfigured && isUuidOrder) {
+          try {
+            await supabase
+              .from('orders')
+              .update({ order_status: 'delivered', inventory_deducted: true, updated_at: new Date().toISOString() })
+              .eq('id', orderId);
+          } catch (e) {}
+        }
+        this._updateLocalOrderStatus(orderId, 'delivered', true);
         return {
           success: true,
-          message: 'Order is already marked as delivered; inventory was previously deducted.',
+          message: 'Order status updated to delivered; inventory was previously deducted.',
           alreadyDeducted: true,
         };
       }
 
       // Try atomic Supabase RPC if configured and order has UUID
-      const isUuidOrder = typeof orderId === 'string' && orderId.length === 36 && orderId.includes('-');
       if (isSupabaseConfigured && isUuidOrder) {
         try {
           const { data, error } = await supabase.rpc('deliver_order_and_deduct_inventory', {

@@ -1206,9 +1206,6 @@ export default function AdminDashboard() {
                           <span className="text-[10px] font-mono text-stone-500 font-bold">
                             #{order.id}
                           </span>
-                          <span className="text-[10px] px-2 py-0.2 rounded-full bg-emerald-100 text-emerald-800 font-medium">
-                            Real Customer Order
-                          </span>
                           {(isDelivered || isDeducted) && (
                             <span className="text-[10px] px-2 py-0.2 rounded-full bg-emerald-100 text-emerald-900 font-bold flex items-center gap-1 border border-emerald-300">
                               <CheckCircle2 className="w-3 h-3 text-emerald-600" />
